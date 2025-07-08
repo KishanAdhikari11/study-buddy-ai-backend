@@ -1,140 +1,64 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Depends
-from core.dependencies import get_directories
-from core.database import get_db
-from utils.indexer import store_markdown_to_vector
-from datetime import datetime
-import uuid
-import pymupdf4llm
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from utils.extractor import extract_pdf_data, extract_docx_data, extract_pptx_data # Import all extractors
+from core.config import settings
 from pathlib import Path
-from models.file import FileInDB
+import uuid
+import logging
 import os
 
 router = APIRouter()
-
-
+logger = logging.getLogger(__name__)
 
 @router.post("/upload")
-async def upload_pdf(
-    file: UploadFile = File(...),
-    user_id: str = Body(...),
-    topic: str = Body(...),
-    directories: dict = Depends(get_directories),
-    db=Depends(get_db)
-):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+async def upload_file(file: UploadFile = File(...)):
+    """
+    Handles file uploads for PDF, DOCX, and PPTX formats, saves them,
+    and then extracts content into Markdown format.
+    """
+    # Get the file extension
+    file_extension = Path(file.filename).suffix.lower()
 
-    source_material_id = str(uuid.uuid4())
-    upload_dir = directories["upload_dir"]
-    output_dir = upload_dir / source_material_id
-    output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = output_dir / f"{source_material_id}.pdf"
-    markdown_path = output_dir / "output.md"
+    # Define allowed file types
+    allowed_extensions = {".pdf", ".docx", ".pptx"}
 
+    # Check if the file type is allowed
+    if file_extension not in allowed_extensions:
+        logger.error(f"Invalid file type uploaded: {file_extension}")
+        raise HTTPException(status_code=400, detail=f"Only {', '.join(allowed_extensions)} files are allowed")
+
+    file_id = str(uuid.uuid4())
+    # Construct file path with the original extension
+    file_path = Path(settings.UPLOAD_DIR) / f"{file_id}{file_extension}"
+
+    # Ensure upload directory exists
     try:
-        # Save uploaded PDF
-        with open(pdf_path, "wb") as f:
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        # Save the uploaded file
+        with open(file_path, "wb") as f:
             f.write(await file.read())
+        logger.info(f"File saved to {file_path}")
+    except Exception as e:
+        logger.error(f"Error saving file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
-        # Convert PDF to markdown
-        markdown_text = pymupdf4llm.to_markdown(str(pdf_path), write_images=False)
-        if not markdown_text.strip():
-            raise HTTPException(status_code=400, detail="No text could be extracted from the PDF")
-
-        # Save markdown
-        with open(markdown_path, "w", encoding="utf-8") as f:
-            f.write(markdown_text)
-
-        # Store in vector database
-        metadata = {"source_material_id": source_material_id, "topic": topic, "user_id": user_id}
-        if not store_markdown_to_vector(str(markdown_path), metadata=metadata, user_id=user_id):
-            raise HTTPException(status_code=500, detail="Failed to store PDF content in vector store")
-
-        # Save file metadata to database
-        file_data = FileInDB(
-            id=source_material_id,
-            user_id=user_id,
-            topic=topic,
-            filename=file.filename,
-            file_type="pdf",
-            markdown_path=str(markdown_path),
-            processed=True,
-            created_at=datetime.utcnow()
-        )
-        await db.files.insert_one(file_data.dict())
-
-        return {"status": "success", "source_material_id": source_material_id}
+    markdown_path = None
+    # Extract Markdown based on file type
+    try:
+        if file_extension == ".pdf":
+            markdown_path = extract_pdf_data(str(file_path), settings.OUTPUT_DIR, file_id)
+        elif file_extension == ".docx":
+            markdown_path = extract_docx_data(str(file_path), settings.OUTPUT_DIR, file_id)
+        elif file_extension == ".pptx":
+            markdown_path = extract_pptx_data(str(file_path), settings.OUTPUT_DIR, file_id)
+        
+        if markdown_path:
+            logger.info(f"File {file_id} ({file_extension}) processed, Markdown saved to {markdown_path}")
+            return {"file_id": file_id, "message": f"File uploaded and processed successfully as Markdown from {file_extension}"}
+        else:
+            logger.error(f"No extractor found for file type: {file_extension}")
+            raise HTTPException(status_code=500, detail=f"Failed to process file: No extractor found for {file_extension}")
 
     except Exception as e:
-        # Clean up files if processing fails
-        for path in [pdf_path, markdown_path]:
-            if path.exists():
-                path.unlink()
-        if output_dir.exists() and not any(output_dir.iterdir()):
-            output_dir.rmdir()
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+        logger.error(f"Error processing {file_extension} file for {file_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
-    finally:
-        # Clean up temporary files
-        for path in [pdf_path, markdown_path]:
-            if path.exists():
-                path.unlink()
-        if output_dir.exists() and not any(output_dir.iterdir()):
-            output_dir.rmdir()
-
-
-# Alternative approach without dependency injection:
-@router.post("/upload-simple")
-async def upload_pdf_simple(
-    file: UploadFile = File(...),
-    user_id: str = Body(...),
-    topic: str = Body(...),
-    db=Depends(get_db)
-):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
-
-    source_material_id = str(uuid.uuid4())
-    upload_dir = Path("uploads")  # Define directly
-    upload_dir.mkdir(exist_ok=True)
-    
-    output_dir = upload_dir / source_material_id
-    output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = output_dir / f"{source_material_id}.pdf"
-    markdown_path = output_dir / "output.md"
-
-    try:
-        with open(pdf_path, "wb") as f:
-            f.write(await file.read())
-
-        markdown_text = pymupdf4llm.to_markdown(str(pdf_path), write_images=False)
-        if not markdown_text.strip():
-            raise HTTPException(status_code=400, detail="No text could be extracted from the PDF")
-
-        with open(markdown_path, "w", encoding="utf-8") as f:
-            f.write(markdown_text)
-
-        metadata = {"source_material_id": source_material_id, "topic": topic, "user_id": user_id}
-        if not store_markdown_to_vector(str(markdown_path), metadata=metadata, user_id=user_id):
-            raise HTTPException(status_code=500, detail="Failed to store PDF content in vector store")
-
-        file_data = FileInDB(
-            id=source_material_id,
-            user_id=user_id,
-            topic=topic,
-            filename=file.filename,
-            file_type="pdf",
-            markdown_path=str(markdown_path),
-            processed=True,
-            created_at=datetime.utcnow()
-        )
-        await db.files.insert_one(file_data.dict())
-
-        return {"status": "success", "source_material_id": source_material_id}
-
-    finally:
-        for path in [pdf_path, markdown_path]:
-            if path.exists():
-                path.unlink()
-        if output_dir.exists() and not any(output_dir.iterdir()):
-            output_dir.rmdir()
