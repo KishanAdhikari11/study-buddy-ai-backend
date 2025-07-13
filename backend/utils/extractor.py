@@ -1,6 +1,8 @@
 from pathlib import Path
 import logging
 import pymupdf4llm
+from markitdown import MarkItDown
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,17 +53,13 @@ def extract_docx_data(input_docx_path: str, output_dir: str, file_id: str) -> st
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        docx_content = pymupdf4llm.to_markdown(
-            input_docx_path,
-            write_images=False,
-            page_chunks=True
-        )
+        md = MarkItDown(enable_plugins=False)
+        result = md.convert(input_docx_path)
+        markdown_content = result.text_content  # Extract the text content from the result
 
-        logger.debug(f"DOCX content for file_id {file_id}: {docx_content}")
-
-        output_md_path = output_dir / f"{file_id}.md"  # Save as output_<file_id>.md
+        output_md_path = output_dir / f"{file_id}.md"
         with open(output_md_path, "w", encoding="utf-8") as f:
-            f.write(docx_content if docx_content else "# No content extracted\n")
+            f.write(markdown_content if markdown_content else "# No content extracted\n")
 
         logger.info(f"Markdown saved to {output_md_path} for file_id {file_id}")
         return str(output_md_path)
@@ -76,17 +74,13 @@ def extract_pptx_data(input_pptx_path: str, output_dir: str, file_id: str) -> st
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        pptx_content = pymupdf4llm.to_markdown(
-            input_pptx_path,
-            write_images=False,
-            page_chunks=True
-        )
+        md = MarkItDown(enable_plugins=False)
+        result = md.convert(input_pptx_path)
+        markdown_content = result.text_content  # Extract the text content from the result
 
-        logger.debug(f"PPTX content for file_id {file_id}: {pptx_content}")
-
-        output_md_path = output_dir / f"{file_id}.md"  # Save as output_<file_id>.md
+        output_md_path = output_dir / f"{file_id}.md"
         with open(output_md_path, "w", encoding="utf-8") as f:
-            f.write(pptx_content if pptx_content else "# No content extracted\n")
+            f.write(markdown_content if markdown_content else "# No content extracted\n")
 
         logger.info(f"Markdown saved to {output_md_path} for file_id {file_id}")
         return str(output_md_path)
@@ -94,5 +88,6 @@ def extract_pptx_data(input_pptx_path: str, output_dir: str, file_id: str) -> st
     except Exception as e:
         logger.error(f"Error extracting PPTX for file_id {file_id}: {str(e)}")
         raise ValueError(f"Failed to extract PPTX: {str(e)}")
+    
     
     
