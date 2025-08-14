@@ -12,6 +12,7 @@ help:
 	@echo "  make check      - Run ruff check"
 	@echo "  make dev        - Run development server"
 	@echo "  make migrate    - Run database migrations"
+	@echo "  make security   - Run security checks"
 
 install:
 	uv sync --frozen
@@ -20,7 +21,7 @@ lint:
 	uv run ruff check
 
 mypy:
-	uv run mypy --config-file mypy.ini .
+	uv run mypy .
 
 test:
 	uv run pytest --cov=src --cov-report=term-missing
@@ -47,3 +48,7 @@ dev:
 
 migrate:
 	uv run alembic upgrade head
+
+security:
+	uv run bandit -r src
+	uv run safety check --full-report
