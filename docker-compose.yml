@@ -8,7 +8,7 @@ services:
         POSTGRES_PASSWORD: password
         POSTGRES_DB: study-buddy-ai
     ports:
-        - "5432:5432"
+        - "5433:5432"
     volumes:
         - pg_data:/var/lib/postgresql/data
 
@@ -16,7 +16,7 @@ services:
     image: redis:7.4-alpine
     restart: always
     ports:
-      - "6379:6379"
+      - "6378:6379"
     volumes:
       - redis-data:/data
 
