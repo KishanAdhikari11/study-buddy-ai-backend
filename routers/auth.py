@@ -8,6 +8,7 @@ from schemas.auth import (
     AuthResponse,
     TokenResponse,
     UserCreate,
+    UserLogin,
     UserResponse,
 )
 from schemas.common import ErrorResponseSchema
@@ -102,3 +103,20 @@ async def signup(
     except Exception as e:
         raise handle_auth_error(e) from e
 
+
+@router.post("/login", response_model=AuthResponse)
+async def login(
+    user_data: UserLogin,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthResponse:
+    """Log in with email and password"""
+    try:
+        result = await auth_service.login(user_data)
+        return format_auth_response(result)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        ) from None
+    except Exception as e:
+        raise handle_auth_error(e) from e
