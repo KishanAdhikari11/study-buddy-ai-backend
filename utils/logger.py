@@ -1,8 +1,9 @@
-import logging
-from datetime import datetime
-from pydantic import BaseModel
 import json
+import logging
 from contextvars import ContextVar
+from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class RequestContextVar(BaseModel):

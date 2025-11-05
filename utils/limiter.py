@@ -1,5 +1,6 @@
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
 from core.settings import settings
 
 API_RATE_LIMIT = "5/minute"
