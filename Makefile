@@ -44,7 +44,7 @@ clean:
 
 dev:
 	docker compose up -d
-	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 migrate:
 	uv run alembic upgrade head
