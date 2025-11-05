@@ -1,12 +1,14 @@
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
-from llama_index.vector_stores.pinecone import PineconeVectorStore
-from llama_index.embeddings.gemini import GeminiEmbedding
-from llama_index.llms.gemini import Gemini
-from pinecone import Pinecone
-from core.config import settings
 import logging
 
+from llama_index.embeddings.gemini import GeminiEmbedding
+from llama_index.llms.gemini import Gemini
+from llama_index.vector_stores.pinecone import PineconeVectorStore
+from pinecone import Pinecone
+
+from core.settings import settings
+
 logger = logging.getLogger(__name__)
+
 
 def get_pinecone_client():
     try:
@@ -14,8 +16,9 @@ def get_pinecone_client():
         logger.info("Pinecone client initialized")
         return pc
     except Exception as e:
-        logger.error(f"Failed to initialize Pinecone client: {str(e)}")
+        logger.error("Failed to initialize Pinecone client", exc_info=e)
         raise
+
 
 def get_llm():
     try:
@@ -23,8 +26,9 @@ def get_llm():
         logger.info("Gemini LLM initialized")
         return llm
     except Exception as e:
-        logger.error(f"Failed to initialize Gemini LLM: {str(e)}")
+        logger.error("Failed to initialize Gemini LLM", exc_info=e)
         raise
+
 
 def get_embed_model():
     try:
@@ -32,18 +36,22 @@ def get_embed_model():
         logger.info("Gemini embedding model initialized")
         return embed_model
     except Exception as e:
-        logger.error(f"Failed to initialize Gemini embedding model: {str(e)}")
+        logger.error("Failed to initialize Gemini embedding model", exc_info=e)
         raise
+
 
 def get_vector_store():
     try:
         pinecone_client = get_pinecone_client()
         vector_store = PineconeVectorStore(
             pinecone_index=pinecone_client.Index(settings.PINECONE_INDEX_NAME),
-            namespace="pdf_quizzes"
+            namespace="pdf_quizzes",
         )
-        logger.info(f"Vector store initialized for index {settings.PINECONE_INDEX_NAME}")
+        logger.info(
+            "Vector store initialized for index",
+            extra={"index_name": settings.PINECONE_INDEX_NAME},
+        )
         return vector_store
     except Exception as e:
-        logger.error(f"Failed to initialize vector store: {str(e)}")
+        logger.error("Failed to initialize vector store", exc_info=e)
         raise
