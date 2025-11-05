@@ -1,15 +1,53 @@
 [project]
 name = "ai-study-buddy"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI Study Buddy: An AI-powered study assistant that generates flashcards from PDF documents."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
+
 dependencies = [
     "alembic>=1.16.4",
-    "bandit>=1.8.6",
     "fastapi>=0.116.1",
+    "genanki>=0.13.1",
     "psycopg2-binary>=2.9.10",
-    "pydantic>=2.11.7",
-    "ruff>=0.12.9",
+    "pydantic[email]>=2.11.7",
+    "pymupdf>=1.26.5",
+    "pymupdf4llm>=0.0.27",
+    "python-docx>=1.2.0",
+    "python-pptx>=1.0.2",
+    "redis[hiredis]>=7.0.1",
+    "slowapi>=0.1.9",
     "sqlalchemy>=2.0.43",
+    "supabase>=2.23.2",
+    "uvicorn>=0.35.0",
+    "pydantic-settings>=2.10.1",
+    "python-jose>=3.5.0",
+    "python-multipart>=0.0.20",
+    "llama-index>=0.14.7",
+    "llama-index-llms-gemini>=0.1.0",
+    "llama-index-embeddings-gemini>=0.4.1",
+    "google-generativeai>=0.8.3",
+    "llama-index-vector-stores-pinecone>=0.7.1",
+    "asyncpg>=0.30.0",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy==1.17.0",
+    "pytest>=8.4.1",
+    "ruff==0.12.3",
+    "types-aiofiles>=24.1.0.20250809",
+]
+
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+namespace_packages = true
+ignore_missing_imports = true
+
+[tool.ruff.lint]
+ignore = ["E501"]
+extend-select = ["E", "I", "F", "G", "N", "T201"]

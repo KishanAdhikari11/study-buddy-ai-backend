@@ -1,24 +1,26 @@
-from utils.constants import OAuth, Supabase
 from typing import Any
+
+from core.constants import OAuth, Supabase
+from schemas.auth import UserCreate, UserLogin
 from utils.logger import get_logger
 from utils.supabase_client import get_supabase_client
-from schemas.auth import UserCreate,UserLogin
 
-logger =get_logger()
+logger = get_logger()
 
 
 class AuthService:
-    """Services for authentication operations """
+    """Services for authentication operations"""
+
     def __init__(self) -> None:
-        self.client=get_supabase_client()
-        
-    async def login(self,user_data:UserCreate ) ->dict[str,Any]:
+        self.client = get_supabase_client()
+
+    async def signup(self, user_data: UserCreate) -> dict[str, Any]:
         try:
-            auth_response= self.client.auth.sign_up(
+            auth_response = self.client.auth.sign_up(
                 {
-                    "email":user_data.email,
-                    "password":user_data.password,
-                    "options":{
+                    "email": user_data.email,
+                    "password": user_data.password,
+                    "options": {
                         "data": {
                             Supabase.FULL_NAME_FIELD: user_data.full_name,
                         }
@@ -26,23 +28,102 @@ class AuthService:
                 }
             )
             if not hasattr(auth_response, "user") or not auth_response.user:
-                raise ValueError(
-                    f"Registration failed: Could not create user"
-                )
+                raise ValueError("Registration failed: Could not create user")
 
-            logger.info("User Created Successfully",extra={"user":user_data.full_name})
+            logger.info(
+                "User Created Successfully", extra={"user": user_data.full_name}
+            )
 
             return self._build_auth_dict(auth_response)
         except Exception as e:
-            logger.error(f"Signup error: {e!s}")
+            logger.error("Signup error", exc_info=e)
             raise ValueError(f"Registration failed: {e!s}") from e
 
-       
+    async def login(self, user_data: UserLogin) -> dict[str, Any]:
+        """Authenticate a user with email and password"""
+        try:
+            auth_response = self.client.auth.sign_in_with_password(
+                {
+                    "email": user_data.email,
+                    "password": user_data.password,
+                }
+            )
+            if (
+                not hasattr(auth_response, "user")
+                or not auth_response.user
+                or not auth_response.session
+            ):
+                raise ValueError("Error Authentication failed")
+
+            logger.info(
+                "User login successful", extra={"user_id": auth_response.user.id}
+            )
+            return self._build_auth_dict(auth_response)
+        except Exception as e:
+            logger.error("Login error:", extra={"error": e})
+            raise ValueError("Authentication failed")
+
+    async def logout(self, token: str) -> bool:
+        try:
+            self.client.auth.sign_out()
+            logger.info("user logged out")
+            return True
+        except Exception as e:
+            logger.error("logout error", extra={"error": e})
+            return False
+
+    async def request_password_reset(self, email: str) -> bool:
+        try:
+            self.client.auth.reset_password_for_email(email)
+            return True
+        except Exception as e:
+            logger.error("Password Error", extra={"Error": e})
+            return False
+
+    async def oauth_login(self, provider: str, redirect_url: str) -> dict[str, Any]:
+        """Initiate OAuth login flow"""
+        if provider != OAuth.GOOGLE:
+            raise ValueError(f"Unsupported provider: {provider}")
+        auth_response = self.client.auth.sign_in_with_oauth(
+            {"provider": "google", "options": {"redirect_to": redirect_url}}
+        )
+
+        return {"auth_url": auth_response.url}
+
+    async def handle_oauth_callback(
+        self, provider: str, code: str, redirect_url: str
+    ) -> dict[str, Any]:
+        """Handle OAuth callback - let Supabase handle PKCE code exchange"""
+        if provider != OAuth.GOOGLE:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        try:
+            code_exchange_params = {"auth_code": code, "redirect_to": redirect_url}
+
+            auth_response = self.client.auth.exchange_code_for_session(
+                code_exchange_params  # type: ignore
+            )
+
+            if not auth_response.user or not auth_response.session:
+                raise ValueError("Failed to exchange code for session")
+
+            logger.info(
+                "OAuth login successful", extra={"user_id": auth_response.user.id}
+            )
+            return self._build_auth_dict(auth_response)
+
+        except Exception as e:
+            logger.error("OAuth authentication error", extra={"error": e})
+            raise ValueError(f"OAuth authentication failed: {e!s}") from e
+
     def _build_auth_dict(self, auth_response: Any) -> dict[str, Any]:
         """Build auth dict in format expected by format_auth_response helper"""
         user_metadata = auth_response.user.user_metadata
         if isinstance(user_metadata, str):
-            logger.warning(f"User metadata is string instead of dict: {user_metadata}")
+            logger.warning(
+                "User metadata is string instead of dict",
+                extra={"user_metadata": user_metadata},
+            )
             user_metadata = {}
         elif user_metadata is None:
             user_metadata = {}

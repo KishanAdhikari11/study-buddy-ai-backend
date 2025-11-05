@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class FlashcardBase(BaseModel):
@@ -35,6 +36,18 @@ class FlashcardResponse(FlashcardInDB):
     """Schema for returning flashcard data"""
 
     pass
+
+
+class FlashcardRequest(BaseModel):
+    """Schema for flashcard generation request"""
+
+    file_id: str = Field(..., description="Unique identifier for the Markdown file")
+    total_flashcards: int = Field(
+        5, description="Number of flashcards to generate", ge=1, le=50
+    )
+    language: str = Field(
+        "English", description="Language for the generated flashcards"
+    )
 
 
 class FlashcardBatch(BaseModel):

@@ -1,5 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -26,7 +27,6 @@ class Settings(BaseSettings):
     # Redis settings
     REDIS_URL: str = "redis://localhost:6379"
 
-    GEMINI_API_KEY: str = ""
     PINECONE_API_KEY: str = ""
     UPLOAD_DIR: str = str(Path("static/uploads"))
     OUTPUT_DIR: str = str(Path("static/outputs"))
