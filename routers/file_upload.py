@@ -1,8 +1,9 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from core.security import get_current_user
 from core.settings import settings
 from utils.extractor import (
     extract_docx_data,
@@ -11,7 +12,7 @@ from utils.extractor import (
 )
 from utils.logger import get_logger
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = get_logger()
 
 

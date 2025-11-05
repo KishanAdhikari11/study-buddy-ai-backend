@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from core.security import get_current_user
 from schemas.flashcards import FlashcardRequest
 from utils.flashcards import generate_flashcards
 from utils.logger import get_logger
 
 logger = get_logger()
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.post("/generate-flashcards")

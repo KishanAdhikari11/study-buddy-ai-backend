@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from core.security import get_current_user
 from schemas.quiz import QuizRequest, QuizResponse
 from utils.logger import get_logger
 from utils.quizzes import generate_quiz_from_index
 
 logger = get_logger()
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 def _normalize_count(count: int | None) -> int:
