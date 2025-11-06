@@ -31,7 +31,7 @@ jobs:
         run: uv sync --frozen
 
       - name: lint check
-        run: uv lint ruff check --outputs-format=github ./
+        run: uv run ruff check --outputs-format=github ./
 
       - name: format check
         run: uv run ruff format --diff ./
