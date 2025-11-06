@@ -1,0 +1,42 @@
+name: AI Study Buddy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      redis: 
+        image: redis:7.4-alpine
+        ports:
+          - 6380:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.0"
+
+      - name: Lock file check
+        run: uv lock --check
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: lint check
+        run: uv lint ruff check --outputs-format=github ./
+
+      - name: format check
+        run: uv run ruff format --diff ./
+      
+      - name: type check
+        run: uv run mypy ./
+
+      - name: run tests
+        run: ENV_FILE=.env.test uv run pytest

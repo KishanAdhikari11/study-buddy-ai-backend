@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Bizchat-AI",
+    title="AI Study Buddy",
     lifespan=lifespan,
     responses={
         status.HTTP_429_TOO_MANY_REQUESTS: {
