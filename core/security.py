@@ -34,14 +34,12 @@ def validate_jwt_token(token: str) -> str:
             options={
                 "verify_signature": True,
                 "verify_exp": True,
-                "require_exp": True,
                 "verify_aud": False,
             },
             audience="authenticated",
         )
 
-        # Safely extract 'sub' and ensure it's a string
-        sub = payload.get("sub")
+        sub = payload.get("sub")  # user-id field
         if sub is None or not isinstance(sub, str):
             logger.warning(
                 "JWT missing or invalid 'sub' field",
@@ -52,7 +50,7 @@ def validate_jwt_token(token: str) -> str:
                 detail="Token payload missing or invalid 'sub' field",
             )
 
-        return sub  # now guaranteed to be str
+        return sub
 
     except JWTError as e:
         logger.error("JWT validation error", extra={"error": str(e)})
