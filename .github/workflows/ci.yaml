@@ -22,6 +22,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           version: "0.7.0"
+          python-version: "3.12"
 
       - name: Lock file check
         run: uv lock --check
