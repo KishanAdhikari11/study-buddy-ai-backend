@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     )
 
     # Database settings
-    DB_URL: str = "postgresql+asyncpg://postgres:password@localhost:5433/s"
+    DB_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_study"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
 
