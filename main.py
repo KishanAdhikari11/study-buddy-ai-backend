@@ -83,11 +83,11 @@ async def logging_middleware(
     return response
 
 
-app.include_router(file_upload_router, prefix="/api/upload", tags=["File Upload"])
+app.include_router(file_upload_router, prefix="/api/file", tags=["File Upload"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(quizzes_router, prefix="/api/quizzes", tags=["Quizzes"])
 
 
-@app.get("/", tags=["Health"])
+@app.get("/health", tags=["Health"])
 async def healthz(request: Request) -> str:
     return "ok!"
