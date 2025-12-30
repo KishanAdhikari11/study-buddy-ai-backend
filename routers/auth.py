@@ -116,26 +116,29 @@ async def logout(
         raise handle_auth_error(e) from e
 
 
-@router.get("/google-login") 
+@router.get("/google-login")
 async def google_login(
-    redirect_url: str, 
+    redirect_url: str,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     try:
-        return await auth_service.oauth_login(provider="google", redirect_url=redirect_url)
+        return await auth_service.oauth_login(
+            provider="google", redirect_url=redirect_url
+        )
     except Exception as e:
         raise handle_auth_error(e)
 
+
 @router.post("/auth/callback", response_model=AuthResponse)
 async def oauth_callback(
-    data: dict, 
+    data: dict,
     auth_service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
     try:
         result = await auth_service.handle_oauth_callback(
             provider=data.get("provider", "google"),
             code=data.get("code"),
-            redirect_url=data.get("redirect_url")
+            redirect_url=data.get("redirect_url"),
         )
         return format_auth_response(result)
     except Exception as e:
