@@ -25,6 +25,7 @@ def store_file_to_supabase(file_path: str, bucket_name: str) -> str:
     public_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
     return public_url
 
+
 def delete_file_from_supabase(file_name: list[str], bucket_name: str) -> None:
     """
     Deletes a file from the specified Supabase storage bucket.
@@ -38,6 +39,7 @@ def delete_file_from_supabase(file_name: list[str], bucket_name: str) -> None:
 
     if response.get("error"):
         raise Exception(f"Failed to delete file: {response['error']['message']}")
+
 
 def list_files_in_supabase(bucket_name: str, folder: str) -> list[dict]:
     """
