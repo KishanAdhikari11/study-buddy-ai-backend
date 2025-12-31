@@ -88,6 +88,6 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(quizzes_router, prefix="/api/quizzes", tags=["Quizzes"])
 
 
-@app.get("/health", tags=["Health"])
+@app.get("/", tags=["Health"])
 async def healthz(request: Request) -> str:
-    return "ok!"
+    return "ok"

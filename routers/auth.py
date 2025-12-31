@@ -6,6 +6,9 @@ from core.constants import Supabase
 from core.security import get_auth_service
 from schemas.auth import (
     AuthResponse,
+    OAuthCallbackRequest,
+    OAuthLoginRequest,
+    PasswordResetRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -104,67 +107,11 @@ async def signup(
         raise handle_auth_error(e) from e
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(
-    token: str = Depends(TokenResponse),
-    auth_service: AuthService = Depends(get_auth_service),
-) -> None:
-    """Log out the current user"""
-    try:
-        await auth_service.logout(token)
-    except Exception as e:
-        raise handle_auth_error(e) from e
-
-
-@router.get("/google-login")
-async def google_login(
-    redirect_url: str,
-    auth_service: AuthService = Depends(get_auth_service),
-):
-    try:
-        return await auth_service.oauth_login(
-            provider="google", redirect_url=redirect_url
-        )
-    except Exception as e:
-        raise handle_auth_error(e)
-
-
-@router.post("/auth/callback", response_model=AuthResponse)
-async def oauth_callback(
-    data: dict,
-    auth_service: AuthService = Depends(get_auth_service),
-) -> AuthResponse:
-    try:
-        result = await auth_service.handle_oauth_callback(
-            provider=data.get("provider", "google"),
-            code=data.get("code"),
-            redirect_url=data.get("redirect_url"),
-        )
-        return format_auth_response(result)
-    except Exception as e:
-        raise handle_auth_error(e)
-
-
-@router.post("/reset-password", status_code=status.HTTP_200_OK)
-async def reset_password(
-    email: str,
-    auth_service: AuthService = Depends(get_auth_service),
-) -> dict[str, str]:
-    """Request password reset email"""
-    try:
-        await auth_service.request_password_reset(email)
-        return {"detail": "Password reset email sent"}
-    except Exception as e:
-        logger.error("Password Reset Request Error", extra={"error": e})
-        raise handle_auth_error(e) from e
-
-
 @router.post("/login", response_model=AuthResponse)
 async def login(
     user_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
-    """Log in with email and password"""
     try:
         result = await auth_service.login(user_data)
         return format_auth_response(result)
@@ -174,4 +121,58 @@ async def login(
             detail="Invalid email or password",
         ) from None
     except Exception as e:
+        raise handle_auth_error(e) from e
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    token: str = Depends(TokenResponse),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> None:
+    try:
+        await auth_service.logout(token)
+    except Exception as e:
+        raise handle_auth_error(e) from e
+
+
+@router.get("/google-login")
+async def google_login(
+    oauth: OAuthLoginRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    try:
+        return await auth_service.oauth_login(
+            provider="google", redirect_url=oauth.redirect_url
+        )
+    except Exception as e:
+        raise handle_auth_error(e)
+
+
+@router.post("/auth/callback", response_model=AuthResponse)
+async def oauth_callback(
+    data: OAuthCallbackRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthResponse:
+    try:
+        result = await auth_service.handle_oauth_callback(
+            provider=data.provider,
+            code=data.code,
+            redirect_url=data.redirect_url,
+        )
+        return format_auth_response(result)
+    except Exception as e:
+        raise handle_auth_error(e)
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    password_reset: PasswordResetRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> dict[str, str]:
+    """Request password reset email"""
+    try:
+        await auth_service.request_password_reset(password_reset.email)
+        return {"detail": "Password reset email sent"}
+    except Exception as e:
+        logger.error("Password Reset Request Error", extra={"error": e})
         raise handle_auth_error(e) from e
