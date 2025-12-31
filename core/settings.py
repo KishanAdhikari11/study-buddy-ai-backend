@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
 
     # Redis settings
-    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_URL: str = "redis://localhost:6378"
 
     PINECONE_API_KEY: str = ""
     UPLOAD_DIR: str = str(Path("static/uploads"))
