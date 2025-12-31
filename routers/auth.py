@@ -6,14 +6,13 @@ from core.constants import Supabase
 from core.security import get_auth_service
 from schemas.auth import (
     AuthResponse,
+    OAuthCallbackRequest,
+    OAuthLoginRequest,
+    PasswordResetRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
-    OAuthCallbackRequest,
-    PasswordResetRequest,
-    OAuthLoginRequest
-    
 )
 from schemas.common import ErrorResponseSchema
 from services.auth_services import AuthService
@@ -106,6 +105,7 @@ async def signup(
         return format_auth_response(result)
     except Exception as e:
         raise handle_auth_error(e) from e
+
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
