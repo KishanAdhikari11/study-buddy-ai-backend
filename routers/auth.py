@@ -1,14 +1,16 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from core.constants import Supabase
 from core.security import get_auth_service
 from schemas.auth import (
     AuthResponse,
     OAuthCallbackRequest,
-    OAuthLoginRequest,
+    OAuthProvider,
+    OAuthResponse,
     PasswordResetRequest,
+    PasswordUpdateRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -135,20 +137,22 @@ async def logout(
         raise handle_auth_error(e) from e
 
 
-@router.get("/google-login")
+@router.get("/google-login", response_model=OAuthResponse)
 async def google_login(
-    oauth: OAuthLoginRequest,
+    provider: OAuthProvider,
+    redirect_url: str,
     auth_service: AuthService = Depends(get_auth_service),
-):
+) -> OAuthResponse:
     try:
-        return await auth_service.oauth_login(
-            provider="google", redirect_url=oauth.redirect_url
+        auth_response = await auth_service.oauth_login(
+            provider=provider, redirect_url=redirect_url
         )
+        return OAuthResponse(auth_url=auth_response["auth_url"])
     except Exception as e:
         raise handle_auth_error(e)
 
 
-@router.post("/auth/callback", response_model=AuthResponse)
+@router.post("/callback", response_model=AuthResponse)
 async def oauth_callback(
     data: OAuthCallbackRequest,
     auth_service: AuthService = Depends(get_auth_service),
@@ -171,8 +175,39 @@ async def reset_password(
 ) -> dict[str, str]:
     """Request password reset email"""
     try:
-        await auth_service.request_password_reset(password_reset.email)
+        # Include the redirect URL for the reset page
+        redirect_url = f"{password_reset.redirect_url or 'http://localhost:3000'}/auth/reset-password"
+        await auth_service.request_password_reset(password_reset.email, redirect_url)
         return {"detail": "Password reset email sent"}
     except Exception as e:
         logger.error("Password Reset Request Error", extra={"error": e})
+        raise handle_auth_error(e) from e
+
+
+@router.post("/update-password", status_code=status.HTTP_200_OK)
+async def update_password(
+    password_update: PasswordUpdateRequest,
+    authorization: str = Header(...),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> dict[str, str]:
+    """Update password using access token from reset link"""
+    try:
+        # Extract token from Authorization header
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization header",
+            )
+
+        access_token = authorization.replace("Bearer ", "")
+
+        await auth_service.update_password(
+            access_token=access_token, new_password=password_update.new_password
+        )
+
+        return {"detail": "Password updated successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Password Update Error", extra={"error": e})
         raise handle_auth_error(e) from e
