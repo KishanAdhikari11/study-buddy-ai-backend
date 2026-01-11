@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +18,11 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
+
+    # File storage path
+    SUPABASE_BUCKET: str = "ai-study"
+    MAX_FILE_SIZE_MB: int = 20 * 1024 * 1024  # 20 MB
 
     # Gemini API Key
     GEMINI_API_KEY: str = ""
@@ -28,8 +31,8 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
 
     PINECONE_API_KEY: str = ""
-    UPLOAD_DIR: str = str(Path("static/uploads"))
-    OUTPUT_DIR: str = str(Path("static/outputs"))
+
+    OUTPUT_DIR: str = "output"
 
 
 settings = Settings()

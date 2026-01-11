@@ -16,7 +16,12 @@ class UserCreate(UserBase):
     """User creation schema"""
 
     password: str = Field(..., min_length=Validation.MIN_PASSWORD_LENGTH)
-    full_name: str = Field(..., min_length=1)
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
 
 
 class UserLogin(UserBase):
@@ -52,6 +57,26 @@ class PasswordResetRequest(BaseModel):
     """Password reset request schema"""
 
     email: EmailStr
+    redirect_url: str | None = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "redirect_url": "http://localhost:3000",
+            }
+        }
+
+
+class PasswordUpdateRequest(BaseModel):
+    """Schema for updating password with reset token"""
+
+    new_password: str = Field(
+        ..., min_length=Validation.MIN_PASSWORD_LENGTH, description="New password"
+    )
+
+    class Config:
+        json_schema_extra = {"example": {"new_password": "NewSecurePassword123!"}}
 
 
 class OAuthProvider(str, Enum):

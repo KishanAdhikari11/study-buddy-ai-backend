@@ -22,22 +22,25 @@ class AuthService:
                     "password": user_data.password,
                     "options": {
                         "data": {
-                            Supabase.FULL_NAME_FIELD: user_data.full_name,
+                            "full_name": f"{user_data.first_name} {user_data.last_name}",
                         }
                     },
                 }
             )
-            if not hasattr(auth_response, "user") or not auth_response.user:
-                raise ValueError("Registration failed: Could not create user")
 
-            logger.info(
-                "User Created Successfully", extra={"user": user_data.full_name}
-            )
+            if auth_response.user:
+                logger.info("User Created", extra={"email": user_data.email})
+                return self._build_auth_dict(auth_response)
 
-            return self._build_auth_dict(auth_response)
+            raise ValueError("Registration failed: No user data returned.")
+
         except Exception as e:
+            error_msg = str(e).lower()
+            if "already registered" in error_msg or "user_already_exists" in error_msg:
+                raise ValueError("This email is already registered. Please log in.")
+
             logger.error("Signup error", exc_info=e)
-            raise ValueError(f"Registration failed: {e!s}") from e
+            raise ValueError(f"Registration failed: {e!s}")
 
     async def login(self, user_data: UserLogin) -> dict[str, Any]:
         """Authenticate a user with email and password"""
@@ -72,13 +75,36 @@ class AuthService:
             logger.error("logout error", extra={"error": e})
             return False
 
-    async def request_password_reset(self, email: str) -> bool:
+    async def request_password_reset(self, email: str, redirect_url: str) -> bool:
+        """Send password reset email with redirect URL"""
         try:
-            self.client.auth.reset_password_for_email(email)
+            self.client.auth.reset_password_email(
+                email, options={"redirect_to": redirect_url}
+            )
+            logger.info("Password reset email sent", extra={"email": email})
             return True
         except Exception as e:
-            logger.error("Password Error", extra={"Error": e})
-            return False
+            logger.error("Password reset request error", extra={"error": e})
+            raise ValueError(f"Failed to send password reset email: {e!s}") from e
+
+    async def update_password(self, access_token: str, new_password: str) -> bool:
+        """Update user password using the access token from reset link"""
+        try:
+            self.client.auth.set_session(access_token, "")
+
+            response = self.client.auth.update_user({"password": new_password})
+
+            if not response.user:
+                raise ValueError("Failed to update password")
+
+            logger.info(
+                "Password updated successfully", extra={"user_id": response.user.id}
+            )
+            return True
+
+        except Exception as e:
+            logger.error("Password update error", extra={"error": e})
+            raise ValueError(f"Failed to update password: {e!s}") from e
 
     async def oauth_login(self, provider: str, redirect_url: str) -> dict[str, Any]:
         """Initiate OAuth login flow"""

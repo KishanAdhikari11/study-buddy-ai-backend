@@ -28,7 +28,6 @@ class JsonFormatter(logging.Formatter):
             "request_path": ctx.request_path if ctx else None,
             "logger": record.name,
             "message": record.getMessage(),
-            "filename": record.flename(),
             "line": record.lineno,
         }
         return json.dumps(log_record)
