@@ -1,98 +1,202 @@
 import uuid
-from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from core.settings import settings
-from utils.extractor import (
-    extract_docx_data,
-    extract_pdf_data,
-    extract_pptx_data,
+from db import get_db
+from models import File, User
+from schemas.file import (
+    FileDeleteResponse,
+    FileListItem,
+    FileListResponse,
+    FileUploadResponse,
 )
+from services.file_services import (
+    delete_file_from_supabase,
+    list_files_in_supabase,
+    upload_file_to_supabase,
+)
+from utils.helper import validate_file_extension
 from utils.logger import get_logger
+from utils.supabase_client import get_signed_url
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter()
 logger = get_logger()
 
 
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """
-    Handles file uploads for PDF, DOCX, and PPTX formats, saves them,
-    and then extracts content into Markdown format.
-    """
+@router.post("/upload", response_model=FileUploadResponse)
+async def upload_file(
+    file: UploadFile,
+    auth_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FileUploadResponse:
     if not file.filename:
-        raise HTTPException(status_code=400, detail="No file name")
-
-    file_extension = Path(file.filename).suffix.lower()
-    allowed_extensions = {".pdf", ".docx", ".pptx", ".md", ".txt"}
-
-    if file_extension not in allowed_extensions:
-        logger.error(
-            "Invalid file type uploaded", extra={"file_extension": file_extension}
-        )
         raise HTTPException(
-            status_code=400,
-            detail=f"Only {', '.join(allowed_extensions)} files are allowed",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
+        )
+    if file.size is None or file.size == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
+        )
+    try:
+        ext = validate_file_extension(file.filename)
+    except ValueError as e:
+        logger.error("File Upload Error- Invalid file extension", extra={"error": e})
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    result = await db.execute(select(User).where(User.supabase_id == auth_user))
+    db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        db_user = User(
+            supabase_id=auth_user,
+            email=str(auth_user),
+            name=f"user_{str(auth_user)[:6]}",
+        )
+        db.add(db_user)
+        await db.commit()
+        await db.refresh(db_user)
+
+    file_id = uuid.uuid4()
+    result = await db.execute(
+        select(File).where(File.filename == file.filename, File.user_id == db_user.id)
+    )
+    existing_file = result.scalar_one_or_none()
+    if existing_file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File with the same name already exists.",
         )
 
-    file_id = str(uuid.uuid4())
-    upload_dir = settings.UPLOAD_DIR or "uploads"
-    file_path = Path(upload_dir) / f"{file_id}{file_extension}"
-
     try:
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        content = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(content)
-        logger.info("File saved", extra={"file_path": file_path})
+        storage_path = await upload_file_to_supabase(
+            bucket_name=settings.SUPABASE_BUCKET,
+            user_id=db_user.supabase_id,
+            file_id=file_id,
+            file=file,
+        )
     except Exception as e:
-        logger.error("Error saving file", exc_info=e)
-        raise HTTPException(status_code=500, detail="Error saving file")
-
-    markdown_path = None
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Upload failed: {str(e)}",
+        )
     try:
-        if file_extension == ".pdf":
-            markdown_path = extract_pdf_data(
-                str(file_path), settings.OUTPUT_DIR, file_id
-            )
-        elif file_extension == ".docx":
-            markdown_path = extract_docx_data(
-                str(file_path), settings.OUTPUT_DIR, file_id
-            )
-        elif file_extension == ".pptx":
-            markdown_path = extract_pptx_data(
-                str(file_path), settings.OUTPUT_DIR, file_id
-            )
-        elif file_extension in {".md", ".txt"}:
-            text_content = content.decode("utf-8")  # reuse already-read bytes
-            output_dir_path = Path(settings.OUTPUT_DIR)
-            output_dir_path.mkdir(parents=True, exist_ok=True)
-            markdown_path = str(output_dir_path / f"{file_id}.md")
-            with open(markdown_path, "w", encoding="utf-8") as md_file:
-                md_file.write(text_content)
+        db_file = File(
+            id=file_id,
+            filename=file.filename,
+            filepath=storage_path,
+            user_id=db_user.id,
+            file_type=ext,
+        )
 
-        if markdown_path:
-            logger.info(
-                "File processed",
-                extra={
-                    "file_id": file_id,
-                    "file_extension": file_extension,
-                    "markdown_path": markdown_path,
-                },
-            )
-            return {
-                "file_id": file_id,
-                "message": f"File uploaded and processed successfully as Markdown from {file_extension}",
-                "markdown_path": markdown_path,
-            }
-
-        raise HTTPException(status_code=500, detail="Failed to process file")
+        db.add(db_file)
+        await db.commit()
+        await db.refresh(db_file)
 
     except Exception as e:
+        await db.rollback()
         logger.error(
-            "Error processing file",
-            extra={"file_extension": file_extension, "file_id": file_id, "error": e},
+            "Database Error - creating user",
+            extra={"error": e, "supabase_id": auth_user},
         )
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}",
+        )
+
+    signed_url = await get_signed_url(storage_path)
+
+    return FileUploadResponse(
+        file_id=str(file_id),
+        filename=file.filename,
+        file_type=ext,
+        download_url=signed_url,
+    )
+
+
+@router.get("/list", response_model=FileListResponse)
+async def list_files(
+    auth_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FileListResponse:
+    result = await db.execute(select(User).where(User.supabase_id == auth_user))
+    db_user = result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    try:
+        files = list_files_in_supabase(
+            bucket_name=settings.SUPABASE_BUCKET,
+            user_id=auth_user,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list files: {str(e)}",
+        )
+
+    file_responses = []
+    for file in files:
+        file_response = FileListItem(
+            name=file["name"],
+            id=file["id"],
+            size=file["size"],
+            content_type=file["content_type"],
+            updated_at=file["updated_at"],
+            created_at=file["created_at"],
+        )
+        file_responses.append(file_response)
+
+    return FileListResponse(files=file_responses)
+
+
+@router.delete("/delete/{file_name}", status_code=status.HTTP_200_OK)
+async def delete_file(
+    file_name: str,
+    auth_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FileDeleteResponse:
+    user = await db.execute(select(User).where(User.supabase_id == auth_user))
+    db_user = user.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    file = await db.execute(
+        select(File).where(File.filename == file_name, File.user_id == db_user.id)
+    )
+    db_file = file.scalar_one_or_none()
+    if not db_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+    try:
+        await db.delete(db_file)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}",
+        )
+
+    try:
+        delete_file_from_supabase(
+            file_name=[db_file.filepath],
+            bucket_name=settings.SUPABASE_BUCKET,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete file: {str(e)}",
+        )
+
+    return FileDeleteResponse(file_name=file_name)
