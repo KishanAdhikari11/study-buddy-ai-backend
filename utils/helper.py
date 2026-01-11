@@ -4,7 +4,6 @@ from models import FileType
 
 ALLOWED_FILE_EXTENSIONS = {
     FileType.Pdf.value,
-    FileType.Ppt.value,
     FileType.Docx.value,
     FileType.Pptx.value,
 }
