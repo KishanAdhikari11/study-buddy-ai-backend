@@ -1,16 +1,12 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List
 
-from pgvector.sqlalchemy import Vector
 from pydantic import EmailStr
 from sqlalchemy import (
     DateTime,
     ForeignKey,
-    Integer,
     String,
-    Text,
     UniqueConstraint,
     Uuid,
     func,
@@ -113,7 +109,6 @@ class File(Base):
 
     def __repr__(self) -> str:
         return f"<File id={self.id} filename='{self.filename}'>"
-
 
 
 class FlashCard(Base):
