@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, Uuid, func
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -36,9 +36,12 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
-
+    auth_providers: Mapped[list["AuthProvider"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     flashcards: Mapped[list["FlashCard"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
@@ -90,16 +93,18 @@ class File(Base):
         nullable=False,
         index=True,
     )
-    filename: Mapped[str] = mapped_column(String, nullable=False)
+    filename: Mapped[str] = mapped_column(String(256), nullable=False)
     filepath: Mapped[str] = mapped_column(
-        String, nullable=False
+        String(512), nullable=False
     )  # supabase storage path
     uploaded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
     file_type: Mapped[FileType] = mapped_column(SqlEnum(FileType), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="files")
+
+    __table_args__ = (UniqueConstraint("filename", "user_id", name="unique_user_file"),)
 
     def __repr__(self) -> str:
         return f"<File id={self.id} filename='{self.filename}'>"
@@ -121,7 +126,7 @@ class FlashCard(Base):
     answer: Mapped[str] = mapped_column(String, nullable=False)
     explanation: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="flashcards")
@@ -147,10 +152,10 @@ class Quiz(Base):
     option_2: Mapped[str] = mapped_column(String, nullable=False, name="Option_2")
     option_3: Mapped[str] = mapped_column(String, nullable=False, name="Option_3")
     option_4: Mapped[str] = mapped_column(String, nullable=False, name="Option_4")
-    correct_option: Mapped[int] = mapped_column(nullable=False)  # 1 to 4
+    correct_option: Mapped[int] = mapped_column(nullable=False)
     explanation: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="quizzes")
