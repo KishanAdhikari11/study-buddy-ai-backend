@@ -1,8 +1,20 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import List
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, Uuid, func
+from pgvector.sqlalchemy import Vector
+from pydantic import EmailStr
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    func,
+)
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -14,7 +26,6 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 class FileType(str, Enum):
     Pdf = "pdf"
-    Ppt = "ppt"
     Docx = "docx"
     Pptx = "pptx"
 
@@ -34,25 +45,21 @@ class User(Base):
         Uuid(as_uuid=True), unique=True, nullable=False
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    email: Mapped[EmailStr] = mapped_column(String(120), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     auth_providers: Mapped[list["AuthProvider"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
+        back_populates="user", cascade="all, delete-orphan"
     )
     flashcards: Mapped[list["FlashCard"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
+        back_populates="user", cascade="all, delete-orphan"
     )
     quizzes: Mapped[list["Quiz"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
+        back_populates="user", cascade="all, delete-orphan"
     )
     files: Mapped[list["File"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -94,9 +101,7 @@ class File(Base):
         index=True,
     )
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
-    filepath: Mapped[str] = mapped_column(
-        String(512), nullable=False
-    )  # supabase storage path
+    filepath: Mapped[str] = mapped_column(String(512), nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
@@ -108,6 +113,7 @@ class File(Base):
 
     def __repr__(self) -> str:
         return f"<File id={self.id} filename='{self.filename}'>"
+
 
 
 class FlashCard(Base):
