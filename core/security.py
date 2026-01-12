@@ -1,4 +1,3 @@
-# core/security.py
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -39,7 +38,7 @@ def validate_jwt_token(token: str) -> str:
             audience="authenticated",
         )
 
-        sub = payload.get("sub")  # user-id field
+        sub = payload.get("sub")
         if sub is None or not isinstance(sub, str):
             logger.warning(
                 "JWT missing or invalid 'sub' field",
