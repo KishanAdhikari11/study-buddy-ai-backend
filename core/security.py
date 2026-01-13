@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from core.settings import settings
-from services.auth_services import AuthService
+from services.auth_service import AuthService
 from utils.logger import get_logger
 
 logger = get_logger()
