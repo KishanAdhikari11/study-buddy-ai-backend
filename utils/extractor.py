@@ -1,131 +1,99 @@
-from pathlib import Path
-
-import pptx
-import pymupdf4llm
 from docx import Document
+from langchain_community.document_loaders import PyMuPDFLoader
+from pptx import Presentation
 
+from schemas.exception import DocumentExtractionError
+from utils.helper import validate_file_extension
 from utils.logger import get_logger
 
 logger = get_logger()
 
 
-def extract_pdf_data(input_pdf_path: str, output_dir: str, file_id: str) -> str:
-    """Extracts text and images from a PDF and saves Markdown with the given file_id."""
-    try:
-        # Convert output_dir to Path early and keep it as Path
-        output_dir_path = Path(output_dir)
-        output_dir_path.mkdir(parents=True, exist_ok=True)
+class DocumentExtractor:
+    """Services for extracting text from various document formats"""
 
-        # Use Path for image directory
-        image_dir = output_dir_path / f"images_{file_id}"
-        image_dir.mkdir(exist_ok=True)
+    def __init__(self, file_path: str) -> None:
+        self.file_path = file_path
+        logger.info("DocumentExtractor initialized")
 
-        pages = pymupdf4llm.to_markdown(
-            input_pdf_path,
-            write_images=True,
-            page_chunks=True,
-            image_format="png",
-            dpi=300,
-            image_path=str(image_dir),  # pymupdf4llm expects str
-            extract_words=True,
-        )
-
-        logger.info(
-            "Extracted pages from PDF using pymupdf4llm", extra={"file_id": file_id}
-        )
-
-        all_text = ""
-        for page in pages:
-            page_text = page.get("text", "") or ""
-            page_number = page.get("page_number", "Unknown")
-            if page_text.strip():
-                all_text += f"## Page {page_number}\n\n{page_text}\n\n"
+    def extract(self) -> str:
+        file_ext = validate_file_extension(self.file_path)
+        try:
+            if file_ext == "pdf":
+                return self._extract_pdf(self.file_path)
+            elif file_ext == "docx":
+                return self._extract_docx(self.file_path)
+            elif file_ext == "pptx":
+                return self._extract_pptx(self.file_path)
             else:
+                raise DocumentExtractionError(f"Unsupported file type: {file_ext}")
+
+        except Exception as e:
+            logger.error("Extraction failed: ", extra={"file_path": self.file_path})
+            raise DocumentExtractionError(f"Failed to extract document: {e}")
+
+    def _extract_pdf(self, file_path: str) -> str:
+        try:
+            loader = PyMuPDFLoader(file_path, mode="page", extract_tables="markdown")
+            documents = loader.load()
+            if not documents:
+                logger.warning("No content extracted from PDF")
+                return ""
+            full_text = "\n\n".join(
+                [
+                    doc.page_content.strip()
+                    for doc in documents
+                    if doc.page_content.strip()
+                ]
+            )
+            logger.info("PDF extraction successful", extra={"file_path": file_path})
+            return full_text
+        except Exception as e:
+            raise DocumentExtractionError(f"Error extracting PDF: {e}")
+
+    def _extract_docx(self, file_path: str) -> str:
+        try:
+            doc = Document(file_path)
+            paragraphs = [
+                para.text.strip() for para in doc.paragraphs if para.text.strip()
+            ]
+            if not paragraphs:
+                logger.warning("No content extracted from DOCX")
+                return ""
+            full_text = "\n\n".join(paragraphs)
+            logger.info("DOCX extraction successful", extra={"file_path": file_path})
+
+            return full_text
+        except Exception as e:
+            raise DocumentExtractionError(f"Error extracting DOCX: {e}")
+
+    def _extract_pptx(self, file_path: str) -> str:
+        try:
+            prs = Presentation(file_path)
+            text_items = []
+            slide_count = 0
+
+            for slide_num, slide in enumerate(prs.slides, 1):
+                slide_texts = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        slide_texts.append(shape.text.strip())
+                if slide_texts:
+                    text_items.append(f"--- Slide {slide_num} ---")
+                    text_items.extend(slide_texts)
+                    slide_count += 1
+
+            if not text_items:
                 logger.warning(
-                    "No text extracted from page",
-                    extra={"file_id": file_id, "page_number": page_number},
+                    "No text content found in PPTX: ", extra={"file_path": file_path}
                 )
+                return ""
 
-        # Build output path using Path
-        output_md_path = output_dir_path / f"{file_id}.md"
-
-        with open(output_md_path, "w", encoding="utf-8") as f:
-            f.write(all_text if all_text.strip() else "# No content extracted\n")
-
-        logger.info(
-            "Markdown saved successfully",
-            extra={"file_id": file_id, "markdown_path": str(output_md_path)},
-        )
-        return str(output_md_path)
-
-    except Exception as e:
-        logger.error(
-            "Error extracting PDF data", extra={"file_id": file_id, "error": str(e)}
-        )
-        raise ValueError(f"Failed to extract PDF: {str(e)}")
-
-
-def extract_docx_data(input_docx_path: str, output_dir: str, file_id: str) -> str:
-    """Extract text from DOCX and save as Markdown."""
-    try:
-        output_dir_path = Path(output_dir)
-        output_dir_path.mkdir(parents=True, exist_ok=True)
-
-        doc = Document(input_docx_path)
-        all_text = "\n\n".join(
-            [para.text for para in doc.paragraphs if para.text.strip()]
-        )
-
-        output_md_path = output_dir_path / f"{file_id}.md"
-        with open(output_md_path, "w", encoding="utf-8") as f:
-            f.write(all_text if all_text.strip() else "# No content extracted\n")
-
-        logger.info(
-            "DOCX extracted to Markdown",
-            extra={"file_id": file_id, "path": str(output_md_path)},
-        )
-        return str(output_md_path)
-
-    except Exception as e:
-        logger.error(
-            "DOCX extraction failed", extra={"file_id": file_id, "error": str(e)}
-        )
-        raise ValueError(f"Failed to extract DOCX: {e}")
-
-
-def extract_pptx_data(input_pptx_path: str, output_dir: str, file_id: str) -> str:
-    """Extract text from PPTX and save as Markdown."""
-    try:
-        output_dir_path = Path(output_dir)
-        output_dir_path.mkdir(parents=True, exist_ok=True)
-
-        prs = pptx.Presentation(input_pptx_path)
-        all_text = []
-
-        for slide_num, slide in enumerate(prs.slides, start=1):
-            slide_text = []
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    text = shape.text.strip()
-                    if text:
-                        slide_text.append(text)
-            if slide_text:
-                all_text.append(f"## Slide {slide_num}\n\n" + "\n\n".join(slide_text))
-
-        full_text = "\n\n".join(all_text)
-        output_md_path = output_dir_path / f"{file_id}.md"
-
-        with open(output_md_path, "w", encoding="utf-8") as f:
-            f.write(full_text if full_text.strip() else "# No content extracted\n")
-
-        logger.info(
-            "PPTX extracted to Markdown",
-            extra={"file_id": file_id, "path": str(output_md_path)},
-        )
-        return str(output_md_path)
-
-    except Exception as e:
-        logger.error(
-            "PPTX extraction failed", extra={"file_id": file_id, "error": str(e)}
-        )
-        raise ValueError(f"Failed to extract PPTX: {e}")
+            full_text = "\n".join(text_items)
+            logger.info(
+                "Successfully extracted : ",
+                extra={"file_path": file_path, "slides_extracted": slide_count},
+            )
+            return full_text
+        except Exception as e:
+            raise DocumentExtractionError(f"Error extracting PPTX: {e}")
