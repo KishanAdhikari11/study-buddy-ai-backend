@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Awaitable, Callable
 from uuid import uuid4
 
@@ -6,6 +7,7 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sentence_transformers import SentenceTransformer
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -13,22 +15,58 @@ from core.settings import settings
 from db import sessionmanager
 from routers.auth import router as auth_router
 from routers.file_upload import router as file_upload_router
-from routers.quizzes import router as quizzes_router
 from schemas.common import ErrorResponseSchema
+from schemas.exception import EmbedingModelError
 from utils.limiter import limiter
 from utils.logger import RequestContextVar, get_logger, request_ctx_var
 
 logger = get_logger()
 
 
+_MODEL_NAME = "all-MiniLM-L6-v2"
+_MODEL_PATH = Path("models") / _MODEL_NAME
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not sessionmanager.session_factory:
         sessionmanager.init_db()
-    app.state.redis = await aioredis.from_url(settings.REDIS_URL)
-    yield
-    await sessionmanager.close()
-    await app.state.redis.close()
+
+    model = None
+    try:
+        if _MODEL_PATH.exists():
+            logger.info(
+                "Loading embedding model from disk",
+                extra={"model_name": _MODEL_NAME, "model_path": _MODEL_PATH},
+            )
+            model = SentenceTransformer(str(_MODEL_PATH))
+        else:
+            logger.info(
+                "Downloading embedding model from HuggingFace",
+                extra={"model_name": _MODEL_NAME},
+            )
+            model = SentenceTransformer(_MODEL_NAME)
+            model.save(str(_MODEL_PATH))
+            logger.info(
+                "Embedding model saved to disk",
+                extra={"model_name": _MODEL_NAME, "model_path": _MODEL_PATH},
+            )
+
+        app.state.embedding_model = model
+        app.state.redis = await aioredis.from_url(settings.REDIS_URL)
+
+        yield
+
+    except Exception as e:
+        logger.exception("Failed to load embedding model")
+        raise EmbedingModelError(f"Error loading embedding model: {e}")
+
+    finally:
+        if hasattr(app.state, "embedding_model"):
+            del app.state.embedding_model
+        if hasattr(app.state, "redis"):
+            await app.state.redis.close()
+        await sessionmanager.close()
 
 
 app = FastAPI(
@@ -85,7 +123,6 @@ async def logging_middleware(
 
 app.include_router(file_upload_router, prefix="/api/file", tags=["File Upload"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(quizzes_router, prefix="/api/quizzes", tags=["Quizzes"])
 
 
 @app.get("/", tags=["Health"])

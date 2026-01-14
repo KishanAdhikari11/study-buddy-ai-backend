@@ -11,16 +11,11 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
 
-    # Pinecone settings
-    PINECONE_ENV: str = ""
-    PINECONE_INDEX_NAME: str = ""
-
+    # supabase setting
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
     SUPABASE_SERVICE_KEY: str = ""
-
-    # File storage path
     SUPABASE_BUCKET: str = "ai-study"
     MAX_FILE_SIZE_MB: int = 20 * 1024 * 1024  # 20 MB
 

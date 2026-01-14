@@ -2,11 +2,14 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
+from pgvector.sqlalchemy import Vector
 from pydantic import EmailStr
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Integer,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
     func,
@@ -60,6 +63,22 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User id={self.id} name='{self.name}'>"
+
+
+class Embedding(Base):
+    __tablename__ = "embeddings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("files.id", ondelete="CASCADE")
+    )
+    chunks: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
+
+    def __repr__(self):
+        return f"<Embedding: {self.file_id}>"
 
 
 class AuthProvider(Base):

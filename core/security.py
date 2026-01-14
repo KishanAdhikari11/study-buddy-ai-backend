@@ -1,4 +1,3 @@
-# core/security.py
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -6,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from core.settings import settings
-from services.auth_services import AuthService
+from services.auth_service import AuthService
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -39,7 +38,7 @@ def validate_jwt_token(token: str) -> str:
             audience="authenticated",
         )
 
-        sub = payload.get("sub")  # user-id field
+        sub = payload.get("sub")
         if sub is None or not isinstance(sub, str):
             logger.warning(
                 "JWT missing or invalid 'sub' field",
