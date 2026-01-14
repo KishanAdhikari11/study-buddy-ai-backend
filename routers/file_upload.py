@@ -1,35 +1,43 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from core.settings import settings
 from db import get_db
-from models import File, User
+from models import Embedding, File, User
+from schemas.common import ErrorResponseSchema
 from schemas.file import (
     FileDeleteResponse,
     FileListItem,
     FileListResponse,
     FileUploadResponse,
 )
-from services.file_services import (
+from services.embeding_service import chunk_text, create_embedding
+from services.file_service import (
     delete_file_from_supabase,
     list_files_in_supabase,
     upload_file_to_supabase,
 )
-from utils.helper import validate_file_extension
+from utils.extractor import DocumentExtractor
+from utils.helper import validate_file_extension, with_temp_file
 from utils.logger import get_logger
 from utils.supabase_client import get_signed_url
 
-router = APIRouter()
+router = APIRouter(
+    responses={
+        403: {"model": ErrorResponseSchema, "description": "Forbidden Response"}
+    },
+)
 logger = get_logger()
 
 
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile,
+    request: Request,
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FileUploadResponse:
@@ -40,6 +48,11 @@ async def upload_file(
     if file.size is None or file.size == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
+        )
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty"
         )
     try:
         ext = validate_file_extension(file.filename)
@@ -70,7 +83,6 @@ async def upload_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File with the same name already exists.",
         )
-
     try:
         storage_path = await upload_file_to_supabase(
             bucket_name=settings.SUPABASE_BUCKET,
@@ -109,6 +121,35 @@ async def upload_file(
         )
 
     signed_url = await get_signed_url(storage_path)
+    try:
+        suffix = "." + ext
+
+        async def process_file(tmp_path: str):
+            extractor = DocumentExtractor(tmp_path)
+            text = extractor.extract()
+
+            chunks = chunk_text(text)
+
+            embeddings = create_embedding(
+                request.app.state.embedding_model,
+                chunks,
+            )
+
+            for chunk, embedding in zip(chunks, embeddings):
+                emb = Embedding(
+                    file_id=file_id,
+                    chunks=chunk,
+                    embedding=embedding,
+                )
+                db.add(emb)
+
+            await db.commit()
+
+        await with_temp_file(contents, suffix, process_file)
+
+    except Exception as e:
+        logger.error("Embedding Pipeline failed", extra={"error": str(e)})
+        await db.rollback()
 
     return FileUploadResponse(
         file_id=str(file_id),
