@@ -45,9 +45,7 @@ async def lifespan(app: FastAPI):
                 "Downloading embedding model from HuggingFace",
                 extra={"model_name": _MODEL_NAME},
             )
-            # Download from HuggingFace
             model = SentenceTransformer(_MODEL_NAME)
-            # Save locally
             model.save(str(_MODEL_PATH))
             logger.info(
                 "Embedding model saved to disk",
