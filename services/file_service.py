@@ -20,6 +20,7 @@ async def upload_file_to_supabase(
             file_data,
             file_options={"content-type": file.content_type, "cacheControl": "3600"},
         )
+        logger.info("File uploaded to: ", extra={"filepath": storage_path})
         return storage_path
 
     except Exception as e:

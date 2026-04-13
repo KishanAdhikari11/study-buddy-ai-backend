@@ -1,6 +1,10 @@
 from typing import Any
 
+from sqlalchemy import select
+
 from core.constants import OAuth, Supabase
+from db import AsyncSession
+from models import User
 from schemas.auth import UserCreate, UserLogin
 from utils.logger import get_logger
 from utils.supabase_client import get_supabase_client
@@ -117,7 +121,7 @@ class AuthService:
         return {"auth_url": auth_response.url}
 
     async def handle_oauth_callback(
-        self, provider: str, code: str, redirect_url: str
+        self, provider: str, code: str, redirect_url: str, db: AsyncSession
     ) -> dict[str, Any]:
         """Handle OAuth callback - let Supabase handle PKCE code exchange"""
         if provider != OAuth.GOOGLE:
@@ -129,6 +133,31 @@ class AuthService:
             auth_response = self.client.auth.exchange_code_for_session(
                 code_exchange_params  # type: ignore
             )
+            s_user = auth_response.user
+            if s_user is None:
+                raise ValueError("Failed to exchange code for session")
+            query = select(User).where(User.supabase_id == s_user.id)
+            result = await db.execute(query)
+            local_user = result.scalars().first()
+            email = s_user.email or s_user.user_metadata.get("email", "")
+            if not local_user:
+                local_user = User(
+                    supabase_id=s_user.id,
+                    name=s_user.user_metadata.get("full_name", "")
+                    or email.split("@")[0],
+                    email=email,
+                )
+            db.add(local_user)
+            try:
+                await db.commit()
+                await db.refresh(local_user)
+                logger.info(
+                    "New User synced to local db", extra={"email": local_user.email}
+                )
+            except Exception as e:
+                await db.rollback()
+                logger.error("Failed to sync user", extra={"error": str(e)})
+                raise ValueError("Could not sync user profile")
 
             if not auth_response.user or not auth_response.session:
                 raise ValueError("Failed to exchange code for session")
@@ -139,8 +168,8 @@ class AuthService:
             return self._build_auth_dict(auth_response)
 
         except Exception as e:
-            logger.error("OAuth authentication error", extra={"error": e})
-            raise ValueError(f"OAuth authentication failed: {e!s}") from e
+            logger.exception("OAuth authentication error", extra={"error": e})
+            raise
 
     def _build_auth_dict(self, auth_response: Any) -> dict[str, Any]:
         """Build auth dict in format expected by format_auth_response helper"""
