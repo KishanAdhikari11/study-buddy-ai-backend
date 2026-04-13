@@ -15,8 +15,6 @@ dependencies = [
     "pymupdf4llm>=0.0.27",
     "python-docx>=1.2.0",
     "python-pptx>=1.0.2",
-    "redis[hiredis]>=7.0.1",
-    "slowapi>=0.1.9",
     "sqlalchemy>=2.0.43",
     "supabase>=2.23.2",
     "uvicorn>=0.35.0",
@@ -33,6 +31,9 @@ dependencies = [
     "psycopg>=3.3.2",
     "pgvector>=0.4.2",
     "sentence-transformers>=5.2.0",
+    "slowapi>=0.1.9",
+    "ty>=0.0.29",
+    "redis>=7.4.0",
 ]
 
 [dependency-groups]
