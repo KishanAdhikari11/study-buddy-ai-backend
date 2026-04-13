@@ -48,9 +48,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
-    auth_providers: Mapped[list["AuthProvider"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
     flashcards: Mapped[list["FlashCard"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -76,31 +73,12 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
 
     def __repr__(self):
         return f"<Embedding: {self.file_id}>"
-
-
-class AuthProvider(Base):
-    __tablename__ = "auth_providers"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    provider_type: Mapped[ProviderType] = mapped_column(
-        SqlEnum(ProviderType), nullable=False
-    )
-    provider_id: Mapped[str] = mapped_column(String, nullable=False)
-
-    user: Mapped["User"] = relationship(back_populates="auth_providers")
-
-    def __repr__(self) -> str:
-        return f"<AuthProvider id={self.id} provider_type='{self.provider_type}'>"
 
 
 class File(Base):
@@ -118,6 +96,9 @@ class File(Base):
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
     filepath: Mapped[str] = mapped_column(String(512), nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     file_type: Mapped[FileType] = mapped_column(SqlEnum(FileType), nullable=False)
@@ -148,6 +129,9 @@ class FlashCard(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
 
     user: Mapped["User"] = relationship(back_populates="flashcards")
 
@@ -175,6 +159,9 @@ class Quiz(Base):
     correct_option: Mapped[int] = mapped_column(nullable=False)
     explanation: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
 

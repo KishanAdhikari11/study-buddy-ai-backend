@@ -6,7 +6,6 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # Database settings
     DB_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_study"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -17,15 +16,13 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str = ""
     SUPABASE_SERVICE_KEY: str = ""
     SUPABASE_BUCKET: str = "ai-study"
-    MAX_FILE_SIZE_MB: int = 20 * 1024 * 1024  # 20 MB
+    MAX_FILE_SIZE_MB: int = 45 * 1024 * 1024  # 45 MB
 
     # Gemini API Key
     GEMINI_API_KEY: str = ""
 
     # Redis settings
     REDIS_URL: str = "redis://localhost:6379"
-
-    PINECONE_API_KEY: str = ""
 
     OUTPUT_DIR: str = "output"
 

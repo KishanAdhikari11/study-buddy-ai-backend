@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 from uuid import uuid4
 
-import redis.asyncio as aioredis
+import redis.asyncio as redis
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
             )
 
         app.state.embedding_model = model
-        app.state.redis = await aioredis.from_url(settings.REDIS_URL)
+        app.state.redis = await redis.from_url(settings.REDIS_URL)
 
         yield
 
@@ -88,6 +88,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(SlowAPIMiddleware)
 app.state.limiter = limiter
 
 
@@ -97,13 +98,7 @@ async def rate_limit_exceed_handler(request: Request, exc: RateLimitExceeded):
         {"detail": "Rate limit exceeded"},
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
     )
-    response = request.app.state.limiter._inject_headers(
-        response, getattr(request.state, "view_rate_limit", None)
-    )
     return response
-
-
-app.add_middleware(SlowAPIMiddleware)
 
 
 @app.middleware("http")
