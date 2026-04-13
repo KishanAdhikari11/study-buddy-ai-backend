@@ -18,7 +18,6 @@ from schemas.file import (
 from services.embeding_service import chunk_text, create_embedding
 from services.file_service import (
     delete_file_from_supabase,
-    list_files_in_supabase,
     upload_file_to_supabase,
 )
 from utils.extractor import DocumentExtractor
@@ -41,11 +40,7 @@ async def upload_file(
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FileUploadResponse:
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
-        )
-    if file.size is None or file.size == 0:
+    if not file.filename or file.size == 0 or file.size is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
         )
@@ -172,28 +167,20 @@ async def list_files(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    try:
-        files = list_files_in_supabase(
-            bucket_name=settings.SUPABASE_BUCKET,
-            user_id=auth_user,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list files: {str(e)}",
-        )
+    file_query = await db.execute(select(File).where(File.user_id == db_user.id))
+    db_files = file_query.scalars().all()
 
     file_responses = []
-    for file in files:
-        file_response = FileListItem(
-            name=file["name"],
-            id=file["id"],
-            size=file["size"],
-            content_type=file["content_type"],
-            updated_at=file["updated_at"],
-            created_at=file["created_at"],
+    for file in db_files:
+        file_responses.append(
+            FileListItem(
+                id=str(file.id),
+                name=file.filename,
+                size=0,
+                content_type=file.file_type,
+                updated_at=file.uploaded_at.isoformat()
+            )
         )
-        file_responses.append(file_response)
 
     return FileListResponse(files=file_responses)
 

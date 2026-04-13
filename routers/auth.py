@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from core.constants import Supabase
 from core.security import get_auth_service
+from db import AsyncSession, get_db
 from schemas.auth import (
     AuthResponse,
     OAuthCallbackRequest,
@@ -156,16 +157,19 @@ async def google_login(
 async def oauth_callback(
     data: OAuthCallbackRequest,
     auth_service: AuthService = Depends(get_auth_service),
+    db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     try:
         result = await auth_service.handle_oauth_callback(
             provider=data.provider,
             code=data.code,
             redirect_url=data.redirect_url,
+            db=db,
         )
         return format_auth_response(result)
     except Exception as e:
-        raise handle_auth_error(e)
+        logger.exception("Callback failed", extra={"error": e})
+        raise
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
