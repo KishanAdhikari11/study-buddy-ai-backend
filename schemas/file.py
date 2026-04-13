@@ -12,7 +12,6 @@ class FileListItem(BaseModel):
     name: str
     id: str
     updated_at: str
-    created_at: str
     size: int
     content_type: str
 
