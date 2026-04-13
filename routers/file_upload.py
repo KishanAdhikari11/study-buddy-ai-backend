@@ -178,7 +178,7 @@ async def list_files(
                 name=file.filename,
                 size=0,
                 content_type=file.file_type,
-                updated_at=file.uploaded_at.isoformat()
+                updated_at=file.uploaded_at.isoformat(),
             )
         )
 
