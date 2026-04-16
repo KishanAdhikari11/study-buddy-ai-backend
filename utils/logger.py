@@ -30,6 +30,14 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "line": record.lineno,
         }
+
+        skip = logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys()
+        for key, val in record.__dict__.items():
+            if key not in skip and key not in log_record:
+                log_record[key] = val
+
+        if record.exc_info:
+            log_record["traceback"] = self.formatException(record.exc_info)
         return json.dumps(log_record)
 
 

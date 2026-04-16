@@ -1,4 +1,4 @@
-.PHONY: help install lint mypy test clean format check dev migrate
+.PHONY: help install lint mypy test clean format check dev migrate typecheck
 
 help:
 	@echo "Available commands:"
@@ -20,8 +20,8 @@ install:
 lint:
 	uv run ruff check
 
-mypy:
-	uv run mypy .
+typecheck:
+	uv run ty check .
 
 test:
 	uv run pytest --cov=src --cov-report=term-missing
@@ -44,8 +44,10 @@ clean:
 
 dev:
 	docker compose up -d
-	uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
+	uv run uvicorn main:app --reload --host 0.0.0.0 --port 8003
+	
+embedding:
+	uv run worker.py
 migrate:
 	uv run alembic upgrade head
 
