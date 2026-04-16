@@ -16,9 +16,9 @@ class FileListItem(BaseModel):
     content_type: str
 
 
-class FileDeleteResponse(BaseModel):
-    file_name: str
-
-
 class FileListResponse(BaseModel):
     files: list[FileListItem]
+
+
+class FileUrlResponse(BaseModel):
+    url: str

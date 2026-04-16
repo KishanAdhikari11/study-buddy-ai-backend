@@ -3,6 +3,7 @@ from typing import Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 
+from schemas.exception import EmbedingServiceError
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -35,6 +36,6 @@ def create_embedding(model: SentenceTransformer, texts: list[str]) -> list[list[
         extra: dict[str, Any] = {"total_exits": len(texts)}
         logger.info("Embeding Created", extra=extra)
         return embeddings
-    except Exception:
+    except Exception as e:
         logger.exception("Failed to create embeddings")
-        raise
+        raise EmbedingServiceError(f"Embedding error for {len(texts)} texts") from e

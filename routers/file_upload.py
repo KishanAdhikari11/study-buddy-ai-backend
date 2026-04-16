@@ -10,10 +10,10 @@ from db import get_db
 from models import EmbeddingJob, File, JobStatus, User
 from schemas.common import ErrorResponseSchema
 from schemas.file import (
-    FileDeleteResponse,
     FileListItem,
     FileListResponse,
     FileUploadResponse,
+    FileUrlResponse,
 )
 from services.file_service import (
     delete_file_from_supabase,
@@ -32,7 +32,9 @@ router = APIRouter(
 logger = get_logger()
 
 
-@router.post("/upload", response_model=FileUploadResponse)
+@router.post(
+    "/upload", response_model=FileUploadResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_file(
     file: UploadFile,
     request: Request,
@@ -127,7 +129,7 @@ async def upload_file(
     )
 
 
-@router.get("/list", response_model=FileListResponse)
+@router.get("/files", response_model=FileListResponse)
 async def list_files(
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -158,12 +160,12 @@ async def list_files(
     return FileListResponse(files=file_responses)
 
 
-@router.delete("/delete/{file_name}", status_code=status.HTTP_200_OK)
+@router.delete("/{file_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_file(
     file_name: str,
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> FileDeleteResponse:
+):
     user = await db.execute(select(User).where(User.supabase_id == auth_user))
     db_user = user.scalar_one_or_none()
     if not db_user:
@@ -179,15 +181,6 @@ async def delete_file(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
-    try:
-        await db.delete(db_file)
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}",
-        )
 
     try:
         delete_file_from_supabase(
@@ -199,16 +192,25 @@ async def delete_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete file: {str(e)}",
         )
+    try:
+        await db.delete(db_file)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}",
+        )
 
-    return FileDeleteResponse(file_name=file_name)
+    return None
 
 
-@router.get("/{file_name}", status_code=status.HTTP_200_OK)
+@router.get("/{file_name}/download", response_model=FileUrlResponse)
 async def get_file_url(
     file_name: str,
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> FileUrlResponse:
     user = await db.execute(select(User).where(User.supabase_id == auth_user))
     db_user = user.scalar_one_or_none()
     if not db_user:
@@ -228,7 +230,7 @@ async def get_file_url(
             bucket_name=settings.SUPABASE_BUCKET, file_path=db_file.filepath
         )
         logger.info("Got url from pdf", extra={"url": url})
-        return {"url": url["signedURL"]}
+        return FileUrlResponse(url=url["signedURL"])
 
     except Exception:
         raise HTTPException(

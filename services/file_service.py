@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import UploadFile
 
+from schemas.exception import FileDownloadError, FileUploadError
 from utils.logger import get_logger
 from utils.supabase_client import get_supabase_client
 
@@ -33,7 +34,7 @@ async def upload_file_to_supabase(
 
     except Exception as e:
         logger.error("File Upload Error", extra={"error": e})
-        raise Exception(f"Failed to upload file: {str(e)}")
+        raise FileUploadError(f"Failed to upload file: {str(e)}")
 
 
 def delete_file_from_supabase(file_name: list[str], bucket_name: str) -> None:
@@ -90,7 +91,7 @@ def get_pdf_url(bucket_name: str, file_path: str):
         return res
     except Exception:
         logger.error("Failed to get signed url")
-        raise
+        raise ValueError("No url found for file")
 
 
 async def download_file_from_supabase(
@@ -102,7 +103,6 @@ async def download_file_from_supabase(
         response = await asyncio.to_thread(
             supabase.storage.from_(bucket_name).download,
             filepath,
-            options={"contentType": "application/pdf"},
         )
         if not response:
             raise ValueError(f"Empty response for file: {filepath}")
@@ -110,6 +110,6 @@ async def download_file_from_supabase(
         logger.info("File download successfully")
         return response, ext
 
-    except Exception:
+    except Exception as e:
         logger.exception("Failed to download file", extra={"filepath": filepath})
-        raise
+        raise FileDownloadError("Failed to download file") from e

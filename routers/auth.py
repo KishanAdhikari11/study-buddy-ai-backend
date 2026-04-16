@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from core.constants import Supabase
 from core.security import get_auth_service
@@ -21,7 +22,10 @@ from schemas.common import ErrorResponseSchema
 from services.auth_service import AuthService
 from utils.logger import get_logger
 
+security = HTTPBearer()
+
 logger = get_logger()
+
 
 router = APIRouter(
     responses={
@@ -129,10 +133,11 @@ async def login(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    token: str = Depends(TokenResponse),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> None:
     try:
+        token = credentials.credentials
         await auth_service.logout(token)
     except Exception as e:
         raise handle_auth_error(e) from e
