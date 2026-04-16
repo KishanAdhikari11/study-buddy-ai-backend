@@ -1,11 +1,15 @@
 import asyncio
 
 from supabase import Client, create_client
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from core.settings import settings
 
 _supabase_client: Client | None = None
+
+
+def _is_not_found(exc: BaseException) -> bool:
+    return "not_found" in str(exc) or "404" in str(exc)
 
 
 def get_supabase_client() -> Client:
@@ -18,6 +22,7 @@ def get_supabase_client() -> Client:
 
 
 @retry(
+    retry=retry_if_exception(_is_not_found),
     wait=wait_exponential(multiplier=2, min=4, max=10),
     stop=stop_after_attempt(3),
     reraise=True,

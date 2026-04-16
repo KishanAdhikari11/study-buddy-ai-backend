@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.security import get_current_user
 from core.settings import settings
 from db import get_db
-from models import Embedding, File, User
+from models import EmbeddingJob, File, JobStatus, User
 from schemas.common import ErrorResponseSchema
 from schemas.file import (
     FileDeleteResponse,
@@ -15,13 +15,12 @@ from schemas.file import (
     FileListResponse,
     FileUploadResponse,
 )
-from services.embeding_service import chunk_text, create_embedding
 from services.file_service import (
     delete_file_from_supabase,
+    get_pdf_url,
     upload_file_to_supabase,
 )
-from utils.extractor import DocumentExtractor
-from utils.helper import validate_file_extension, with_temp_file
+from utils.helper import validate_file_extension
 from utils.logger import get_logger
 from utils.supabase_client import get_signed_url
 
@@ -44,15 +43,16 @@ async def upload_file(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded."
         )
+
     contents = await file.read()
     if not contents:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty"
         )
+
     try:
         ext = validate_file_extension(file.filename)
     except ValueError as e:
-        logger.error("File Upload Error- Invalid file extension", extra={"error": e})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     result = await db.execute(select(User).where(User.supabase_id == auth_user))
@@ -69,27 +69,30 @@ async def upload_file(
         await db.refresh(db_user)
 
     file_id = uuid.uuid4()
+
     result = await db.execute(
         select(File).where(File.filename == file.filename, File.user_id == db_user.id)
     )
-    existing_file = result.scalar_one_or_none()
-    if existing_file:
+    if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File with the same name already exists.",
         )
+
     try:
         storage_path = await upload_file_to_supabase(
             bucket_name=settings.SUPABASE_BUCKET,
             user_id=db_user.supabase_id,
             file_id=file_id,
             file=file,
+            contents=contents,
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Upload failed: {str(e)}",
         )
+
     try:
         db_file = File(
             id=file_id,
@@ -98,53 +101,23 @@ async def upload_file(
             user_id=db_user.id,
             file_type=ext,
         )
-
         db.add(db_file)
+
+        job = EmbeddingJob(file_id=file_id, status=JobStatus.Pending)
+        db.add(job)
+
         await db.commit()
         await db.refresh(db_file)
-
     except Exception as e:
         await db.rollback()
-        logger.error(
-            "Database Error - creating user",
-            extra={"error": e, "supabase_id": auth_user},
-        )
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error: {str(e)}",
         )
 
+    await request.app.state.redis.lpush("embedding_jobs", str(file_id))
+
     signed_url = await get_signed_url(storage_path)
-    try:
-        suffix = "." + ext
-
-        async def process_file(tmp_path: str):
-            extractor = DocumentExtractor(tmp_path)
-            text = extractor.extract()
-
-            chunks = chunk_text(text)
-
-            embeddings = create_embedding(
-                request.app.state.embedding_model,
-                chunks,
-            )
-
-            for chunk, embedding in zip(chunks, embeddings):
-                emb = Embedding(
-                    file_id=file_id,
-                    chunks=chunk,
-                    embedding=embedding,
-                )
-                db.add(emb)
-
-            await db.commit()
-
-        await with_temp_file(contents, suffix, process_file)
-
-    except Exception as e:
-        logger.error("Embedding Pipeline failed", extra={"error": str(e)})
-        await db.rollback()
 
     return FileUploadResponse(
         file_id=str(file_id),
@@ -228,3 +201,37 @@ async def delete_file(
         )
 
     return FileDeleteResponse(file_name=file_name)
+
+
+@router.get("/{file_name}", status_code=status.HTTP_200_OK)
+async def get_file_url(
+    file_name: str,
+    auth_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.execute(select(User).where(User.supabase_id == auth_user))
+    db_user = user.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    file = await db.execute(
+        select(File).where(File.filename == file_name, File.user_id == db_user.id)
+    )
+    db_file = file.scalar_one_or_none()
+    if not db_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file found"
+        )
+    try:
+        url = get_pdf_url(
+            bucket_name=settings.SUPABASE_BUCKET, file_path=db_file.filepath
+        )
+        logger.info("Got url from pdf", extra={"url": url})
+        return {"url": url["signedURL"]}
+
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail=f"File not found in storage. Path: {db_file.filepath}",
+        )

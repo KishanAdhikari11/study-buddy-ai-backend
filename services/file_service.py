@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from fastapi import UploadFile
@@ -9,17 +10,24 @@ logger = get_logger()
 
 
 async def upload_file_to_supabase(
-    file: UploadFile, bucket_name: str, file_id: uuid.UUID, user_id: uuid.UUID
+    file: UploadFile,
+    bucket_name: str,
+    file_id: uuid.UUID,
+    user_id: uuid.UUID,
+    contents: bytes,
 ) -> str:
     supabase = get_supabase_client()
     storage_path = f"{user_id}/{file_id}/{file.filename}"
-    file_data = await file.read()
     try:
-        supabase.storage.from_(bucket_name).upload(
+        response = supabase.storage.from_(bucket_name).upload(
             storage_path,
-            file_data,
+            contents,
             file_options={"content-type": file.content_type, "cacheControl": "3600"},
         )
+
+        if hasattr(response, "error") and response.error:
+            raise Exception(response.error)
+
         logger.info("File uploaded to: ", extra={"filepath": storage_path})
         return storage_path
 
@@ -73,3 +81,35 @@ def list_files_in_supabase(bucket_name: str, user_id: str) -> list[dict]:
 
     except Exception as e:
         raise Exception(f"Failed to list files: {str(e)}")
+
+
+def get_pdf_url(bucket_name: str, file_path: str):
+    supabase = get_supabase_client()
+    try:
+        res = supabase.storage.from_(bucket_name).create_signed_url(file_path, 3600)
+        return res
+    except Exception:
+        logger.error("Failed to get signed url")
+        raise
+
+
+async def download_file_from_supabase(
+    bucket_name: str, filepath: str
+) -> tuple[bytes, str]:
+    supabase = get_supabase_client()
+
+    try:
+        response = await asyncio.to_thread(
+            supabase.storage.from_(bucket_name).download,
+            filepath,
+            options={"contentType": "application/pdf"},
+        )
+        if not response:
+            raise ValueError(f"Empty response for file: {filepath}")
+        ext = "." + filepath.rsplit(".", 1)[-1]
+        logger.info("File download successfully")
+        return response, ext
+
+    except Exception:
+        logger.exception("Failed to download file", extra={"filepath": filepath})
+        raise

@@ -29,6 +29,13 @@ class FileType(str, Enum):
     Pptx = "pptx"
 
 
+class JobStatus(str, Enum):
+    Pending = "pending"
+    Processing = "processing"
+    Done = "done"
+    Failed = "failed"
+
+
 class ProviderType(str, Enum):
     Google = "google"
     Email = "email"
@@ -74,7 +81,7 @@ class Embedding(Base):
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
     )
 
     def __repr__(self):
@@ -99,16 +106,39 @@ class File(Base):
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
     )
     file_type: Mapped[FileType] = mapped_column(SqlEnum(FileType), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="files")
+    embedding_jobs: Mapped[list["EmbeddingJob"]] = relationship(
+        back_populates="file", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (UniqueConstraint("filename", "user_id", name="unique_user_file"),)
 
     def __repr__(self) -> str:
         return f"<File id={self.id} filename='{self.filename}'>"
+
+
+class EmbeddingJob(Base):
+    __tablename__ = "embedding_jobs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("files.id", ondelete="CASCADE")
+    )
+    file: Mapped["File"] = relationship(back_populates="embedding_jobs")
+
+    status: Mapped[JobStatus] = mapped_column(SqlEnum(JobStatus), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    def __repr__(self):
+        return f"Embedding jobs for file: {self.file_id}"
 
 
 class FlashCard(Base):
@@ -130,7 +160,7 @@ class FlashCard(Base):
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="flashcards")
@@ -162,7 +192,7 @@ class Quiz(Base):
         DateTime(timezone=True), default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="quizzes")

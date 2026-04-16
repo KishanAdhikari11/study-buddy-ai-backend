@@ -28,13 +28,13 @@ class DocumentExtractor:
             else:
                 raise DocumentExtractionError(f"Unsupported file type: {file_ext}")
 
-        except Exception as e:
-            logger.error("Extraction failed: ", extra={"file_path": self.file_path})
-            raise DocumentExtractionError(f"Failed to extract document: {e}")
+        except Exception:
+            logger.exception("Extraction failed")
+            raise
 
     def _extract_pdf(self, file_path: str) -> str:
         try:
-            loader = PyMuPDFLoader(file_path, mode="page", extract_tables="markdown")
+            loader = PyMuPDFLoader(file_path)
             documents = loader.load()
             if not documents:
                 logger.warning("No content extracted from PDF")
@@ -48,8 +48,9 @@ class DocumentExtractor:
             )
             logger.info("PDF extraction successful", extra={"file_path": file_path})
             return full_text
-        except Exception as e:
-            raise DocumentExtractionError(f"Error extracting PDF: {e}")
+        except Exception:
+            logger.exception("PDF extraction failed")
+            raise
 
     def _extract_docx(self, file_path: str) -> str:
         try:

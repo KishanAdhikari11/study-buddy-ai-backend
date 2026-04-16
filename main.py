@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Awaitable, Callable
 from uuid import uuid4
 
@@ -7,7 +6,6 @@ import redis.asyncio as redis
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sentence_transformers import SentenceTransformer
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -23,36 +21,12 @@ from utils.logger import RequestContextVar, get_logger, request_ctx_var
 logger = get_logger()
 
 
-_MODEL_NAME = "all-MiniLM-L6-v2"
-_MODEL_PATH = Path("models") / _MODEL_NAME
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not sessionmanager.session_factory:
         sessionmanager.init_db()
 
-    model = None
     try:
-        if _MODEL_PATH.exists():
-            logger.info(
-                "Loading embedding model from disk",
-                extra={"model_name": _MODEL_NAME, "model_path": _MODEL_PATH},
-            )
-            model = SentenceTransformer(str(_MODEL_PATH))
-        else:
-            logger.info(
-                "Downloading embedding model from HuggingFace",
-                extra={"model_name": _MODEL_NAME},
-            )
-            model = SentenceTransformer(_MODEL_NAME)
-            model.save(str(_MODEL_PATH))
-            logger.info(
-                "Embedding model saved to disk",
-                extra={"model_name": _MODEL_NAME, "model_path": _MODEL_PATH},
-            )
-
-        app.state.embedding_model = model
         app.state.redis = await redis.from_url(settings.REDIS_URL)
 
         yield
