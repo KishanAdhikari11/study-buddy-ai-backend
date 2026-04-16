@@ -169,7 +169,7 @@ class AuthService:
 
         except Exception as e:
             logger.exception("OAuth authentication error", extra={"error": e})
-            raise
+            raise ValueError("OAuth Failed")
 
     def _build_auth_dict(self, auth_response: Any) -> dict[str, Any]:
         """Build auth dict in format expected by format_auth_response helper"""
