@@ -14,7 +14,6 @@ from db import sessionmanager
 from routers.auth import router as auth_router
 from routers.file_upload import router as file_upload_router
 from schemas.common import ErrorResponseSchema
-from schemas.exception import EmbedingModelError
 from utils.limiter import limiter
 from utils.logger import RequestContextVar, get_logger, request_ctx_var
 
@@ -31,9 +30,8 @@ async def lifespan(app: FastAPI):
 
         yield
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to load embedding model")
-        raise EmbedingModelError(f"Error loading embedding model: {e}")
 
     finally:
         if hasattr(app.state, "embedding_model"):
