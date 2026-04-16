@@ -4,5 +4,13 @@ class DocumentExtractionError(Exception):
     pass
 
 
-class EmbedingModelError(Exception):
+class EmbedingServiceError(Exception):
+    pass
+
+
+class FileUploadError(Exception):
+    pass
+
+
+class FileDownloadError(Exception):
     pass
