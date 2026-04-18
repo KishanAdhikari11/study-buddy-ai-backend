@@ -6,28 +6,57 @@ services:
     restart: always
     ports:
       - "8000:8000"
-    depends_on:
-      - db
-      - redis
+    env_file:
+      - .env
     environment:
       POSTGRES_URL: ${DB_URL}
       REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ghcr.io/kishanadhikari11/study-buddy-ai-backend:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_URL: ${DB_URL}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["uv", "run", "worker.py"]
 
   db:
     image: pgvector/pgvector:pg17
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: study-buddy-ai
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7.4-alpine
     restart: always
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   pg_data:
