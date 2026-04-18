@@ -6,7 +6,7 @@ client = TestClient(app)
 
 
 def test_rate_limit():
-    for i in range(5):
+    for i in range(50):
         response = client.get("/")
         assert response.status_code == 200, f"Failed at {i + 1}"
     response = client.get("/")
