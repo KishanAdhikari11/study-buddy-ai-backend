@@ -88,7 +88,7 @@ async def logging_middleware(
     return response
 
 
-app.include_router(file_upload_router, prefix="/api/file", tags=["File Upload"])
+app.include_router(file_upload_router, prefix="/api", tags=["File Upload"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 
 
