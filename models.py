@@ -5,6 +5,7 @@ from enum import Enum
 from pgvector.sqlalchemy import Vector
 from pydantic import EmailStr
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy import Enum as SqlEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -62,6 +64,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     files: Mapped[list["File"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    youtube_links: Mapped[list["Youtube"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -153,9 +158,16 @@ class FlashCard(Base):
         nullable=False,
         index=True,
     )
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("files.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     question: Mapped[str] = mapped_column(String, nullable=False)
     answer: Mapped[str] = mapped_column(String, nullable=False)
     explanation: Mapped[str] = mapped_column(String, nullable=False)
+    remember: Mapped[bool] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
     )
@@ -181,12 +193,18 @@ class Quiz(Base):
         nullable=False,
         index=True,
     )
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("files.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     question: Mapped[str] = mapped_column(String, nullable=False)
-    option_1: Mapped[str] = mapped_column(String, nullable=False, name="Option_1")
-    option_2: Mapped[str] = mapped_column(String, nullable=False, name="Option_2")
-    option_3: Mapped[str] = mapped_column(String, nullable=False, name="Option_3")
-    option_4: Mapped[str] = mapped_column(String, nullable=False, name="Option_4")
-    correct_option: Mapped[int] = mapped_column(nullable=False)
+    option_1: Mapped[str] = mapped_column(String, nullable=True)
+    option_2: Mapped[str] = mapped_column(String, nullable=True)
+    option_3: Mapped[str] = mapped_column(String, nullable=True)
+    option_4: Mapped[str] = mapped_column(String, nullable=True)
+    correct_option: Mapped[int] = mapped_column(nullable=True)
     explanation: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), nullable=False
@@ -199,3 +217,29 @@ class Quiz(Base):
 
     def __repr__(self) -> str:
         return f"<Quiz id={self.id} question='{self.question[:50]}...'>"
+
+
+class Youtube(Base):
+    __tablename__ = "youtube_transcribe"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    transcript: Mapped[str] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
+    )
+    user: Mapped["User"] = relationship(back_populates="youtube_links")
+
+    def __repr__(self) -> str:
+        return f"<Youtube id={self.id} url='{self.url}'>"
