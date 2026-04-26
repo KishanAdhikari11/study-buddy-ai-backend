@@ -59,7 +59,7 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr
     redirect_url: str | None = None
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
@@ -75,7 +75,7 @@ class PasswordUpdateRequest(BaseModel):
         ..., min_length=Validation.MIN_PASSWORD_LENGTH, description="New password"
     )
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {"example": {"new_password": "NewSecurePassword123!"}}
 
 
