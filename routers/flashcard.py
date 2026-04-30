@@ -12,7 +12,12 @@ from core.settings import settings
 from db import get_db
 from models import Embedding, FlashCard
 from schemas.common import ErrorResponseSchema
-from schemas.flashcards import FlashcardRequests, FlashcardResponse, FlashcardSchema
+from schemas.flashcards import (
+    FlashcardListResponse,
+    FlashcardRequests,
+    FlashcardResponse,
+    FlashcardSchema,
+)
 from services.auth_service import get_db_file, get_db_user
 from utils.logger import get_logger
 
@@ -133,11 +138,11 @@ async def generate_flashcards(
     return FlashcardResponse(file_id=file_id, cards=build_cards(db_cards))
 
 
-@router.get("/list", response_model=list[FlashcardResponse])
+@router.get("/list", response_model=list[FlashcardListResponse])
 async def list_flashcards(
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[FlashcardResponse]:
+) -> list[FlashcardListResponse]:
     db_user = await get_db_user(auth_user, db)
 
     result = await db.execute(
@@ -145,19 +150,13 @@ async def list_flashcards(
     )
     file_ids = result.scalars().all()
 
-    db_file = await get_db_file(file_ids[0], db_user.id, db)
-
     responses = []
     for file_id in file_ids:
-        fc_result = await db.execute(
-            select(FlashCard).where(FlashCard.file_id == file_id)
-        )
-        flashcards = fc_result.scalars().all()
+        db_file = await get_db_file(file_id, db_user.id, db)
         responses.append(
-            FlashcardResponse(
+            FlashcardListResponse(
                 file_id=file_id,
                 file_name=db_file.filename,
-                cards=build_cards(flashcards),
             )
         )
 

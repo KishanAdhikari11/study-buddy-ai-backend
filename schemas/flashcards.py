@@ -20,3 +20,8 @@ class FlashcardResponse(BaseModel):
     file_id: UUID
     file_name: Optional[str] = None
     cards: list[FlashcardSchema]
+
+
+class FlashcardListResponse(BaseModel):
+    file_id: UUID
+    file_name: Optional[str] = None
