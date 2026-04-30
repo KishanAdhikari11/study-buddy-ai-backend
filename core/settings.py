@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,9 +22,14 @@ class Settings(BaseSettings):
 
     # Gemini API Key
     GEMINI_API_KEY: str = ""
+    AI_MODEL: str = "gemini-3.1-flash-lite-preview"
+    MAX_TOKENS: int = 12000
 
     # Redis settings
     REDIS_URL: str = "redis://localhost:6379"
 
 
 settings = Settings()
+
+
+os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
