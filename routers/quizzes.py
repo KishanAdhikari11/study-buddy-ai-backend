@@ -12,7 +12,13 @@ from core.settings import settings
 from db import get_db
 from models import Embedding, Quiz
 from schemas.common import ErrorResponseSchema
-from schemas.quizzes import MCQQuestion, QuizRequest, QuizzesResponse, TrueFalseQuestion
+from schemas.quizzes import (
+    MCQQuestion,
+    QuizListResponse,
+    QuizRequest,
+    QuizzesResponse,
+    TrueFalseQuestion,
+)
 from services.auth_service import get_db_file, get_db_user
 from utils.logger import get_logger
 
@@ -164,29 +170,26 @@ async def generate_quiz(
     return QuizzesResponse(file_id=file_id, questions=questions)
 
 
-@router.get("/list", response_model=list[QuizzesResponse])
+@router.get("/list", response_model=list[QuizListResponse])
 async def list_quizzes(
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[QuizzesResponse]:
+) -> list[QuizListResponse]:
     db_user = await get_db_user(auth_user, db)
 
     result = await db.execute(
         select(Quiz.file_id).where(Quiz.user_id == db_user.id).distinct()
     )
     file_ids = result.scalars().all()
-    file = await get_db_file(file_ids[0], db_user.id, db)
-    file_name = file.filename if file else "Unknown"
 
     responses = []
     for file_id in file_ids:
-        quizzes_result = await db.execute(select(Quiz).where(Quiz.file_id == file_id))
-        quizzes = quizzes_result.scalars().all()
+        file = await get_db_file(file_id, db_user.id, db)
+        file_name = file.filename if file else "Unknown"
         responses.append(
-            QuizzesResponse(
+            QuizListResponse(
                 file_name=file_name,
-                file_id=file_ids[0],
-                questions=build_questions(quizzes),
+                file_id=file_id,
             )
         )
 

@@ -31,3 +31,8 @@ class QuizzesResponse(BaseModel):
     file_name: Optional[str] = None
     file_id: UUID
     questions: list[Question]
+
+
+class QuizListResponse(BaseModel):
+    file_id: UUID
+    file_name: Optional[str] = None
