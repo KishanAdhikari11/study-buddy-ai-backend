@@ -1,5 +1,3 @@
-from typing import cast
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from langchain.chat_models import init_chat_model
 from sqlalchemy import select
@@ -10,7 +8,11 @@ from core.settings import settings
 from db import get_db
 from models import Youtube
 from schemas.common import ErrorResponseSchema
-from schemas.youtube import YoutubeResponse, YoutubeSummarizeResponse
+from schemas.youtube import (
+    YoutubeListResponse,
+    YoutubeResponse,
+    YoutubeSummarizeResponse,
+)
 from services.auth_service import get_db_user
 from services.youtube_transcribt import transcribe_yt
 from utils.logger import get_logger
@@ -82,7 +84,7 @@ async def summarize_transcript(
     stmt = select(Youtube.transcript).where(Youtube.url == video_url)
 
     transcript = await db.execute(stmt)
-    transcript = transcript.scalar_one_or_none()
+    transcript = transcript.scalars().first()
 
     if not transcript:
         raise HTTPException(
@@ -94,15 +96,20 @@ async def summarize_transcript(
     llm = init_chat_model(settings.AI_MODEL, model_provider="google_genai")
 
     response = await llm.ainvoke(prompt)
-    raw = cast(str, response.content)
+    item = response.content[0]
 
-    return YoutubeSummarizeResponse(url=video_url, summary=raw.strip())
+    if isinstance(item, dict):
+        content = str(item.get("text", "No summary available"))
+    else:
+        content = item
+
+    return YoutubeSummarizeResponse(url=video_url, summary=content)
 
 
 @router.get("/chat", response_model=YoutubeSummarizeResponse)
 async def chat_with_yt(
     video_url: str,
-    user_message: str,
+    query: str,
     auth_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -110,7 +117,7 @@ async def chat_with_yt(
     stmt = select(Youtube.transcript).where(Youtube.url == video_url)
 
     transcript = await db.execute(stmt)
-    transcript = transcript.scalar_one_or_none()
+    transcript = transcript.scalars().first()
 
     if not transcript:
         raise HTTPException(
@@ -118,10 +125,27 @@ async def chat_with_yt(
             detail="Transcript not found",
         )
 
-    prompt = YT_CHAT_PROMPT.format(transcript=transcript, user_message=user_message)
+    prompt = YT_CHAT_PROMPT.format(transcript=transcript, user_message=query)
     llm = init_chat_model(settings.AI_MODEL, model_provider="google_genai")
 
     response = await llm.ainvoke(prompt)
-    raw = cast(str, response.content)
+    item = response.content[0]
 
-    return YoutubeSummarizeResponse(url=video_url, summary=raw.strip())
+    if isinstance(item, dict):
+        content = str(item.get("text", "No summary available"))
+    else:
+        content = item
+
+    return YoutubeSummarizeResponse(url=video_url, summary=content)
+
+
+@router.get("/list", response_model=YoutubeListResponse)
+async def list_user_videos(
+    auth_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> YoutubeListResponse:
+    db_user = await get_db_user(auth_user, db)
+    stmt = select(Youtube.url).where(Youtube.user_id == db_user.id)
+    result = await db.execute(stmt)
+    urls = result.scalars().all()
+    return YoutubeListResponse(url=urls)
