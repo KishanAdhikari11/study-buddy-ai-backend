@@ -12,7 +12,11 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.settings import settings
 from db import sessionmanager
 from routers.auth import router as auth_router
+from routers.chat import router as chat_router
 from routers.file_upload import router as file_upload_router
+from routers.flashcard import router as flashcard_router
+from routers.quizzes import router as quiz_router
+from routers.yt_transcribe import router as yt_transcribe_router
 from schemas.common import ErrorResponseSchema
 from utils.limiter import limiter
 from utils.logger import RequestContextVar, get_logger, request_ctx_var
@@ -90,6 +94,10 @@ async def logging_middleware(
 
 app.include_router(file_upload_router, prefix="/api", tags=["File Upload"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(chat_router, prefix="/api", tags=["Chat"])
+app.include_router(flashcard_router, prefix="/api", tags=["Flashcards"])
+app.include_router(quiz_router, prefix="/api", tags=["Quizzes"])
+app.include_router(yt_transcribe_router, prefix="/api", tags=["YouTube Transcription"])
 
 
 @app.get("/", tags=["Health"])

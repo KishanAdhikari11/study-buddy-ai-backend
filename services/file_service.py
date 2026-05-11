@@ -97,11 +97,12 @@ def get_pdf_url(bucket_name: str, file_path: str):
 async def download_file_from_supabase(
     bucket_name: str, filepath: str
 ) -> tuple[bytes, str]:
+    logger.info("Downloading file", extra={"bucket": bucket_name, "filepath": filepath})
     supabase = get_supabase_client()
 
     try:
         response = await asyncio.to_thread(
-            supabase.storage.from_(bucket_name).download,
+            supabase.storage.from_("ai-study").download,
             filepath,
         )
         if not response:

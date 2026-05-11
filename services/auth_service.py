@@ -1,10 +1,12 @@
 from typing import Any
+from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 
 from core.constants import OAuth, Supabase
 from db import AsyncSession
-from models import User
+from models import File, User
 from schemas.auth import UserCreate, UserLogin
 from utils.logger import get_logger
 from utils.supabase_client import get_supabase_client
@@ -211,3 +213,25 @@ class AuthService:
             "user": user_dict,
             "session": session_dict,
         }
+
+
+async def get_db_user(auth_user, db: AsyncSession) -> User:
+    result = await db.execute(select(User).where(User.supabase_id == auth_user))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return db_user
+
+
+async def get_db_file(file_id: UUID, user_id: UUID, db: AsyncSession) -> File:
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    db_file = result.scalar_one_or_none()
+    if not db_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+    return db_file

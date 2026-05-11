@@ -21,4 +21,5 @@ class FileListResponse(BaseModel):
 
 
 class FileUrlResponse(BaseModel):
+    id: str
     url: str

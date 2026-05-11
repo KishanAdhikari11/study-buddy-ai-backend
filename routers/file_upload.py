@@ -205,7 +205,7 @@ async def delete_file(
     return None
 
 
-@router.get("/{file_name}/download", response_model=FileUrlResponse)
+@router.get("/{file_name}", response_model=FileUrlResponse)
 async def get_file_url(
     file_name: str,
     auth_user=Depends(get_current_user),
@@ -217,6 +217,7 @@ async def get_file_url(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
+
     file = await db.execute(
         select(File).where(File.filename == file_name, File.user_id == db_user.id)
     )
@@ -225,15 +226,17 @@ async def get_file_url(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No file found"
         )
+
     try:
         url = get_pdf_url(
             bucket_name=settings.SUPABASE_BUCKET, file_path=db_file.filepath
         )
-        logger.info("Got url from pdf", extra={"url": url})
-        return FileUrlResponse(url=url["signedURL"])
-
-    except Exception:
+        return FileUrlResponse(
+            id=str(db_file.id),
+            url=url["signedURL"],
+        )
+    except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"File not found in storage. Path: {db_file.filepath}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"error: {str(e)}",
         )

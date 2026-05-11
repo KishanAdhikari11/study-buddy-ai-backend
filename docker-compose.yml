@@ -30,7 +30,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: ["uv", "run", "worker.py"]
+    command: [".venv/bin/python", "worker.py"]
 
   db:
     image: pgvector/pgvector:pg17
@@ -38,7 +38,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: study-buddy-ai
+      POSTGRES_DB: ai_study
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
